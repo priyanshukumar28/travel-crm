@@ -1,0 +1,34 @@
+require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const morgan = require("morgan");
+
+const { notFoundHandler, errorHandler } = require("./middleware/errorHandler");
+const authRoutes = require("./routes/auth.routes");
+const policyRoutes = require("./routes/policy.routes");
+const claimRoutes = require("./routes/claim.routes");
+const { claimScopedRouter: claimDocumentRoutes, documentRouter } = require("./routes/document.routes");
+const adminRoutes = require("./routes/admin.routes");
+
+const app = express();
+
+app.use(cors({ origin: process.env.CORS_ORIGIN || "*" }));
+app.use(express.json());
+app.use(morgan("dev"));
+
+app.get("/api/health", (req, res) => res.json({ status: "ok", service: "across-assist-backend" }));
+
+app.use("/api/auth", authRoutes);
+app.use("/api/policies", policyRoutes);
+app.use("/api/claims", claimRoutes);
+app.use("/api/claims/:id/documents", claimDocumentRoutes);
+app.use("/api/documents", documentRouter);
+app.use("/api/admin", adminRoutes);
+
+app.use(notFoundHandler);
+app.use(errorHandler);
+
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => {
+  console.log(`Across Assist backend listening on http://localhost:${PORT}`);
+});

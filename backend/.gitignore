@@ -1,0 +1,42 @@
+node_modules
+.env
+dist
+uploads/*
+!uploads/.gitkeep
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Environment
+.env
+.env.*
+
+# Prisma
+prisma/dev.db
+prisma/dev.db-journal
+
+# Build
+dist/
+build/
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Vercel
+.vercel/
+
+# Render
+.render/
+
+# Misc
+coverage/

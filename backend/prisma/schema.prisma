@@ -1,0 +1,186 @@
+// Across Assist — Travel Claims Management System
+// Prisma schema — PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  AGENT
+  INSURER
+  SUPER_ADMIN
+}
+
+enum ClaimType {
+  TRAVEL
+  MEDICAL
+}
+
+// High-level lifecycle stage — mirrors the BRD flowchart.
+// Registration only ever happens in the Agent portal.
+// Assessment only ever happens in the Insurer portal.
+enum ClaimStage {
+  INTIMATION
+  REGISTRATION
+  ASSESSMENT
+  PAYMENT
+  CLOSED
+}
+
+enum ClaimStatus {
+  DRAFT
+  SUBMITTED_FOR_VALIDATION
+  DEFICIENT
+  VALIDATED
+  INTIMATED_WITH_INSURER
+  SUBMITTED_TO_INSURER
+  RETURNED_BY_INSURER
+  APPROVED
+  REJECTED
+  PAYMENT_PROCESSED
+  CLOSED
+}
+
+enum CreatorRole {
+  CUSTOMER
+  AGENT
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         UserRole
+  phone        String?
+  createdAt    DateTime  @default(now())
+
+  policies       Policy[]       @relation("PolicyOwner")
+  createdClaims  Claim[]        @relation("ClaimCreatedBy")
+  activityLogs   ActivityLog[]
+  documents      Document[]
+}
+
+model Policy {
+  id             String   @id @default(cuid())
+  policyNumber   String   @unique
+  holderName     String
+  planName       String
+  claimType      ClaimType @default(TRAVEL)
+  startDate      DateTime
+  endDate        DateTime
+  issuanceDate   DateTime
+  geoCoverage    String
+  issuanceBranch String?
+  ownerId        String
+  owner          User     @relation("PolicyOwner", fields: [ownerId], references: [id])
+  isActive       Boolean  @default(true)
+  coverages      Coverage[]
+  claims         Claim[]
+  createdAt      DateTime @default(now())
+}
+
+model Coverage {
+  id         String  @id @default(cuid())
+  policyId   String
+  policy     Policy  @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  name       String
+  sumInsured Float
+  deductible String?
+}
+
+model Claim {
+  id                     String      @id @default(cuid())
+  claimNumber            String      @unique
+  parentClaimNumber      String
+  policyId               String
+  policy                 Policy      @relation(fields: [policyId], references: [id])
+  claimType              ClaimType
+  coverages              String[]
+  stage                  ClaimStage  @default(INTIMATION)
+  status                 ClaimStatus @default(DRAFT)
+
+  createdById            String
+  createdBy              User        @relation("ClaimCreatedBy", fields: [createdById], references: [id])
+  createdByRole          CreatorRole
+
+  // Structured core fields used for search / listing
+  insurerClaimIntimationNo   String?
+  insurerClaimRegistrationNo String?
+
+  // Flexible stage payloads — each stores every wireframe field for that
+  // stage as JSON, keyed by field id. Keeping these as JSONB lets the form
+  // schema evolve (new insurer fields, new coverages) without a migration
+  // for every field, while the columns above stay indexable for search.
+  intimationData   Json  @default("{}")
+  registrationData Json  @default("{}")
+  assessmentData   Json  @default("{}")
+  paymentData      Json  @default("{}")
+
+  deficiencyReason String?
+
+  activityLogs ActivityLog[]
+  documents     Document[]
+  notifications Notification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  claimId   String
+  claim     Claim    @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  role      UserRole
+  action    String
+  meta      Json?
+  createdAt DateTime @default(now())
+}
+
+model Document {
+  id             String   @id @default(cuid())
+  claimId        String
+  claim          Claim    @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  uploadedById   String
+  uploadedBy     User     @relation(fields: [uploadedById], references: [id])
+  uploadedByRole UserRole
+  stage          ClaimStage
+  docType        String
+  fileName       String   // original filename shown to users
+  storedName     String   // random name on disk — never trust the client's filename
+  mimeType       String
+  sizeBytes      Int
+  createdAt      DateTime @default(now())
+}
+
+model Notification {
+  id        String               @id @default(cuid())
+  claimId   String
+  claim     Claim                @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  channel   NotificationChannel
+  toAddress String
+  subject   String?
+  message   String
+  status    NotificationStatus   @default(QUEUED)
+  createdAt DateTime             @default(now())
+}
