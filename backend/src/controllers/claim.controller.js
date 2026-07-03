@@ -19,16 +19,27 @@ async function logActivity(claimId, user, action, meta) {
   });
 }
 
-async function getClaimContact(claimId) {
+async function getNotificationRecipients(claimId) {
   const claim = await prisma.claim.findUnique({
     where: { id: claimId },
-    include: { policy: { include: { owner: true } } },
+    include: { policy: { include: { owner: true } }, createdBy: true },
   });
-  const owner = claim.policy.owner;
-  return {
-    email: claim.intimationData?.commEmail || owner.email,
-    phone: claim.intimationData?.commContact || owner.phone,
-  };
+
+  const customerEmail = claim.intimationData?.commEmail || claim.policy.owner.email;
+
+  // Handling agent: whoever created the claim if it was agent-initiated,
+  // otherwise fall back to every seeded Agent account (single ops-desk
+  // assumption for this MVP — swap for a real "assigned agent" field once
+  // claims are routed to specific agents).
+  let agentEmails = [];
+  if (claim.createdByRole === "AGENT") {
+    agentEmails = [claim.createdBy.email];
+  } else {
+    const agents = await prisma.user.findMany({ where: { role: "AGENT" }, select: { email: true } });
+    agentEmails = agents.map((a) => a.email);
+  }
+
+  return { emails: [customerEmail, ...agentEmails] };
 }
 
 function scopeWhereForRole(user) {
@@ -152,7 +163,7 @@ const submitIntimation = asyncHandler(async (req, res) => {
   await notifyClaimEvent(updated, {
     subject: `Claim ${claim.claimNumber} received`,
     message: `Hi, we've received your claim intimation (${claim.claimNumber}) and it's now with our claims desk for first-level validation. We'll keep you posted.`,
-    to: await getClaimContact(claim.id),
+    to: await getNotificationRecipients(claim.id),
   });
   res.json(updated);
 });
@@ -177,7 +188,7 @@ const validateClaim = asyncHandler(async (req, res) => {
     await notifyClaimEvent(updated, {
       subject: `Action needed on claim ${claim.claimNumber}`,
       message: `We found a deficiency on your claim ${claim.claimNumber}: ${reason || "missing documents / incorrect data"}. Please log in and resubmit with corrections. Reminders will follow every 15 days per our SOP.`,
-      to: await getClaimContact(claim.id),
+      to: await getNotificationRecipients(claim.id),
     });
     return res.json(updated);
   }
@@ -269,7 +280,7 @@ const submitToInsurer = asyncHandler(async (req, res) => {
   await notifyClaimEvent(updated, {
     subject: `Claim ${claim.claimNumber} registered with insurer`,
     message: `Your claim ${claim.claimNumber} has been intimated and registered with the insurer. Insurer reference: ${updated.insurerClaimIntimationNo}.`,
-    to: await getClaimContact(claim.id),
+    to: await getNotificationRecipients(claim.id),
   });
   res.json(updated);
 });
@@ -334,7 +345,7 @@ const insurerDecision = asyncHandler(async (req, res) => {
   await notifyClaimEvent(updated, {
     subject: `Update on claim ${claim.claimNumber}`,
     message: DECISION_MESSAGE[decision],
-    to: await getClaimContact(claim.id),
+    to: await getNotificationRecipients(claim.id),
   });
   res.json(updated);
 });
@@ -375,7 +386,7 @@ const closeClaim = asyncHandler(async (req, res) => {
       claim.status === "REJECTED"
         ? `Your claim ${claim.claimNumber} has been closed following repudiation.`
         : `Payment for claim ${claim.claimNumber} has been processed. This case is now closed. Thank you for your patience.`,
-    to: await getClaimContact(claim.id),
+    to: await getNotificationRecipients(claim.id),
   });
   res.json(updated);
 });

@@ -58,18 +58,6 @@ export default function DocumentUpload({ claimId, canUpload = true }) {
     }
   };
 
-  const onDownload = async (doc) => {
-    const res = await client.get(`/documents/${doc.id}/download`, { responseType: "blob" });
-    const url = window.URL.createObjectURL(new Blob([res.data]));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = doc.fileName;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
-  };
-
   const onDelete = async (doc) => {
     await client.delete(`/documents/${doc.id}`);
     await load();
@@ -115,7 +103,7 @@ export default function DocumentUpload({ claimId, canUpload = true }) {
                   </td>
                   <td>{formatSize(d.sizeBytes)}</td>
                   <td style={{ display: "flex", gap: 8 }}>
-                    <SecondaryBtn onClick={() => onDownload(d)}>Download</SecondaryBtn>
+                    <a className="btn btn-secondary" href={d.url} target="_blank" rel="noopener noreferrer">Open</a>
                     <SecondaryBtn onClick={() => onDelete(d).catch((e) => setError(e.response?.data?.message || "Could not delete."))}>Delete</SecondaryBtn>
                   </td>
                 </tr>

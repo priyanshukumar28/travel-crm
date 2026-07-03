@@ -61,38 +61,30 @@ async function sendWhatsapp(to, message) {
   return true;
 }
 
-const SENDERS = {
-  EMAIL: (to, subject, message) => sendEmail(to, subject, message),
-  SMS: (to, _subject, message) => sendSms(to, message),
-  WHATSAPP: (to, _subject, message) => sendWhatsapp(to, message),
-};
-
-// Fires all applicable channels for a claim event and logs each attempt to
-// the Notification table (QUEUED -> SENT/FAILED) so the Admin outbox always
-// reflects what actually happened.
+// Fires email only (SMS/WhatsApp channels are wired below but intentionally
+// not invoked — flip them back on later by adding entries to `channels`).
+// `to.emails` is an array so both the customer and the handling agent can be
+// notified from a single call.
 async function notifyClaimEvent(claim, { subject, message, to }) {
-  const channels = [
-    { channel: "EMAIL", address: to?.email },
-    { channel: "SMS", address: to?.phone },
-    { channel: "WHATSAPP", address: to?.phone },
-  ].filter((c) => c.address);
+  const emails = (to?.emails || []).filter(Boolean);
+  const uniqueEmails = [...new Set(emails)];
 
-  for (const c of channels) {
+  for (const address of uniqueEmails) {
     const record = await prisma.notification.create({
       data: {
         claimId: claim.id,
-        channel: c.channel,
-        toAddress: c.address,
+        channel: "EMAIL",
+        toAddress: address,
         subject,
         message,
         status: "QUEUED",
       },
     });
     try {
-      await SENDERS[c.channel](c.address, subject, message);
+      await sendEmail(address, subject, message);
       await prisma.notification.update({ where: { id: record.id }, data: { status: "SENT" } });
     } catch (err) {
-      console.error(`Notification failed (${c.channel} -> ${c.address}):`, err.message);
+      console.error(`Notification failed (EMAIL -> ${address}):`, err.message);
       await prisma.notification.update({ where: { id: record.id }, data: { status: "FAILED" } });
     }
   }

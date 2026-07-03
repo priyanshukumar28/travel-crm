@@ -4,7 +4,6 @@ const { upload } = require("../utils/upload");
 const {
   uploadDocument,
   listDocuments,
-  downloadDocument,
   deleteDocument,
 } = require("../controllers/document.controller");
 
@@ -16,7 +15,6 @@ claimScopedRouter.get("/", listDocuments);
 
 const documentRouter = express.Router();
 documentRouter.use(authenticate);
-documentRouter.get("/:docId/download", downloadDocument);
 documentRouter.delete("/:docId", deleteDocument);
 
 module.exports = { claimScopedRouter, documentRouter };

@@ -1,13 +1,9 @@
-const path = require("path");
-const fs = require("fs");
-const crypto = require("crypto");
 const multer = require("multer");
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, "..", "..", "uploads");
-
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
+// No local disk involved at all — files are held in memory just long enough
+// to stream to Cloudinary (see document.controller.js), which works
+// identically whether the server has 1 instance or 10, and survives Render
+// restarts/redeploys since nothing is written to the container's disk.
 
 const ALLOWED_MIME = new Set([
   "application/pdf",
@@ -19,18 +15,8 @@ const ALLOWED_MIME = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => {
-    // Never trust the client's filename on disk — random name, original kept in DB only.
-    const randomName = crypto.randomBytes(20).toString("hex");
-    const ext = path.extname(file.originalname).slice(0, 10);
-    cb(null, `${randomName}${ext}`);
-  },
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024 }, // 15MB per file
   fileFilter: (req, file, cb) => {
     if (!ALLOWED_MIME.has(file.mimetype)) {
@@ -40,4 +26,4 @@ const upload = multer({
   },
 });
 
-module.exports = { upload, UPLOAD_DIR };
+module.exports = { upload };

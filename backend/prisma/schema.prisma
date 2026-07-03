@@ -167,7 +167,8 @@ model Document {
   stage          ClaimStage
   docType        String
   fileName       String   // original filename shown to users
-  storedName     String   // random name on disk — never trust the client's filename
+  url            String   // Cloudinary secure_url — no local disk involved
+  publicId       String   // Cloudinary public_id, needed to delete the file later
   mimeType       String
   sizeBytes      Int
   createdAt      DateTime @default(now())
