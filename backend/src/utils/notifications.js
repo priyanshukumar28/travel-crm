@@ -1,56 +1,51 @@
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 const prisma = require("./prisma");
 
-// ---------- EMAIL (real) ----------
-// Uses a standard SMTP transporter — works with Gmail (App Password), Outlook,
-// Resend, SendGrid's SMTP relay, Mailtrap, or any other SMTP host. If
-// SMTP_HOST isn't set in .env yet, we fall back to console logging so the
-// rest of the app keeps working while you're setting credentials up.
+// ---------- EMAIL (real, via HTTP API) ----------
+// Sends over HTTPS instead of a raw SMTP socket — this matters specifically
+// on PaaS hosts (Render, Railway, etc.) which often silently block or
+// blackhole outbound SMTP ports (25/465/587), causing sends to hang
+// indefinitely rather than fail cleanly. An HTTP API call can't hang like
+// that, and gives back a real success/error response immediately.
+//
+// Sign up free at resend.com, grab an API key, set RESEND_API_KEY in env.
+// Without a verified sending domain, Resend's sandbox will only deliver to
+// the email address on your own Resend account — verify a domain (Resend →
+// Domains) once you're ready to send to arbitrary recipients.
 
-let transporter = null;
-
-function getTransporter() {
-  if (!process.env.SMTP_HOST) return null;
-  if (transporter) return transporter;
-
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: Number(process.env.SMTP_PORT) === 465, // true for port 465, false for 587/25 (STARTTLS)
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
-  return transporter;
+let resendClient = null;
+function getResend() {
+  if (!process.env.RESEND_API_KEY) return null;
+  if (!resendClient) resendClient = new Resend(process.env.RESEND_API_KEY);
+  return resendClient;
 }
 
 async function sendEmail(to, subject, message) {
-  const t = getTransporter();
+  const resend = getResend();
 
-  if (!t) {
-    console.log(`[email — SMTP not configured, logging only] -> ${to} | ${subject} | ${message}`);
+  if (!resend) {
+    console.log(`[email — RESEND_API_KEY not configured, logging only] -> ${to} | ${subject} | ${message}`);
     return true;
   }
 
-  await t.sendMail({
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+  const { data, error } = await resend.emails.send({
+    from: process.env.EMAIL_FROM || "Across Assist <onboarding@resend.dev>",
     to,
     subject,
     text: message,
     html: `<p style="font-family:sans-serif;font-size:14px;color:#101828;">${message}</p>
            <p style="font-family:sans-serif;font-size:11px;color:#667085;">— Across Assist Travel Claims</p>`,
   });
-  console.log(`[email sent] -> ${to} | ${subject}`);
+
+  if (error) {
+    throw new Error(typeof error === "string" ? error : error.message || "Resend API error");
+  }
+
+  console.log(`[email sent] -> ${to} | ${subject} | id: ${data?.id}`);
   return true;
 }
 
-// ---------- SMS / WHATSAPP (still stubbed) ----------
-// Real delivery needs a paid gateway (Twilio, MSG91, WhatsApp Business API).
-// Swap these two bodies the same way sendEmail was swapped above once you
-// have an account — everything else (routes, controllers, outbox) is
-// already wired and won't need to change.
-
+// ---------- SMS / WHATSAPP (still stubbed, not invoked) ----------
 async function sendSms(to, message) {
   console.log(`[stub sms] -> ${to} | ${message}`);
   return true;
@@ -61,8 +56,8 @@ async function sendWhatsapp(to, message) {
   return true;
 }
 
-// Fires email only (SMS/WhatsApp channels are wired below but intentionally
-// not invoked — flip them back on later by adding entries to `channels`).
+// Fires email only (SMS/WhatsApp channels are wired above but intentionally
+// not invoked — flip them back on later by adding entries below).
 // `to.emails` is an array so both the customer and the handling agent can be
 // notified from a single call.
 async function notifyClaimEvent(claim, { subject, message, to }) {
