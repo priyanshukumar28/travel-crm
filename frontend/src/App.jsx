@@ -18,6 +18,9 @@ import InsurerClaimWorkspace from "./pages/insurer/InsurerClaimWorkspace";
 
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminPolicies from "./pages/admin/AdminPolicies";
+import AdminPlans from "./pages/admin/AdminPlans";
+import AdminDocumentRequirements from "./pages/admin/AdminDocumentRequirements";
+import AdminInsurerSync from "./pages/admin/AdminInsurerSync";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminNotifications from "./pages/admin/AdminNotifications";
 
@@ -106,6 +109,9 @@ export default function App() {
         }
       >
         <Route index element={<AdminPolicies />} />
+        <Route path="plans" element={<AdminPlans />} />
+        <Route path="document-requirements" element={<AdminDocumentRequirements />} />
+        <Route path="insurer-sync" element={<AdminInsurerSync />} />
         <Route path="users" element={<AdminUsers />} />
         <Route path="notifications" element={<AdminNotifications />} />
       </Route>

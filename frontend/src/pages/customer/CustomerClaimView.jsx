@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import client from "../../api/client";
 import DocumentUpload from "../../components/DocumentUpload";
 import { INTIMATION_SCHEMA } from "../../lib/fieldSchemas";
+import { CATEGORY_LABELS } from "../../lib/catalog";
 import {
   Card, InfoTile, PrimaryBtn, SecondaryBtn, EmptyNote,
   StageStepper, SchemaGroup, StatusBadge,
@@ -58,12 +59,24 @@ export default function CustomerClaimView() {
         <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 4 }}>
           <div>
             <div style={{ fontFamily: "monospace", fontWeight: 700, color: "var(--brand-blue-dark)" }}>{claim.claimNumber}</div>
-            <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{claim.claimType} · {claim.coverages.join(", ")}</div>
+            <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{CATEGORY_LABELS[claim.claimCategory] || claim.claimCategory} · {claim.coverages.join(", ")}</div>
           </div>
           <StatusBadge status={claim.status} />
         </div>
 
         <StageStepper stage={claim.stage} />
+
+        {claim.coverageItems?.length > 0 && (
+          <div className="grid-2" style={{ marginBottom: 16 }}>
+            {claim.coverageItems.map((it, i) => (
+              <InfoTile
+                key={i}
+                label={`${it.coverageName}${it.subCoverName ? ` — ${it.subCoverName}` : ""}`}
+                value={`Initial Reserve: ${it.initialReserve || 0}${it.payableAmount ? ` · Payable: ${it.payableAmount}` : ""}`}
+              />
+            ))}
+          </div>
+        )}
 
         {claim.status === "DEFICIENT" && (
           <div className="login-error" style={{ marginBottom: 16 }}>

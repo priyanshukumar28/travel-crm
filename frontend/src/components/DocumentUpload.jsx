@@ -2,12 +2,6 @@ import React, { useCallback, useEffect, useState } from "react";
 import client from "../api/client";
 import { Card, SecondaryBtn, EmptyNote, Badge } from "./ui";
 
-const DOC_TYPES = [
-  "Claim Form", "Discharge Summary", "Hospital Bill", "Prescription",
-  "Passport / Visa Copy", "FIR / Police Report", "Boarding Pass / Ticket",
-  "Cancelled Cheque", "Death Certificate", "Others",
-];
-
 function formatSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -21,26 +15,37 @@ const ROLE_BADGE = {
   SUPER_ADMIN: { color: "#1D8A5F", bg: "#DEF3E9" },
 };
 
-// Real disk-backed document upload/list, reused across all three portals.
-// `claimId` is the only required prop; `canDelete` controls whether the
-// current user sees a delete action on documents they didn't upload.
+// Point 1: the document checklist is computed live from the coverages
+// actually on this claim (backend GET /claims/:id/required-documents),
+// instead of a hardcoded document-type list — every claim can require a
+// different set depending on what was selected at initiation.
 export default function DocumentUpload({ claimId, canUpload = true }) {
   const [docs, setDocs] = useState([]);
-  const [docType, setDocType] = useState(DOC_TYPES[0]);
+  const [required, setRequired] = useState({ coverageNames: [], documents: [] });
+  const [docType, setDocType] = useState("");
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    const { data } = await client.get(`/claims/${claimId}/documents`);
-    setDocs(data);
-  }, [claimId]);
+    const [{ data: docsData }, { data: reqData }] = await Promise.all([
+      client.get(`/claims/${claimId}/documents`),
+      client.get(`/claims/${claimId}/required-documents`),
+    ]);
+    setDocs(docsData);
+    setRequired(reqData);
+    if (!docType && reqData.documents.length > 0) setDocType(reqData.documents[0].docType);
+  }, [claimId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load(); }, [load]);
 
+  const docTypeOptions = required.documents.length > 0
+    ? required.documents.map((d) => d.docType)
+    : ["Claim Form", "Others"]; // fallback if no coverage/requirement data yet
+
   const onUpload = async (e) => {
     e.preventDefault();
-    if (!file) return;
+    if (!file || !docType) return;
     setBusy(true);
     setError("");
     try {
@@ -63,14 +68,38 @@ export default function DocumentUpload({ claimId, canUpload = true }) {
     await load();
   };
 
+  const missingCount = required.documents.filter((d) => !d.uploaded).length;
+
   return (
-    <Card title="Documents" subtitle="Real files, stored on the server — not just form fields">
+    <Card
+      title="Documents"
+      subtitle={
+        required.coverageNames.length > 0
+          ? `Required documents are computed automatically from this claim's coverages: ${required.coverageNames.join(", ")}`
+          : "Real files, stored on the server — not just form fields"
+      }
+    >
+      {required.documents.length > 0 && (
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 8, color: "var(--brand-blue-dark)" }}>
+            Checklist — {required.documents.length - missingCount} of {required.documents.length} uploaded
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {required.documents.map((d) => (
+              <Badge key={d.docType} color={d.uploaded ? "#1D8A5F" : "#B5790C"} bg={d.uploaded ? "#DEF3E9" : "#FBF0D6"}>
+                {d.uploaded ? "✓ " : "○ "}{d.docType}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
       {canUpload && (
         <form onSubmit={onUpload} style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 18 }}>
-          <div className="field" style={{ maxWidth: 220 }}>
+          <div className="field" style={{ maxWidth: 260 }}>
             <label className="field-label"><span>Document Type</span></label>
             <select value={docType} onChange={(e) => setDocType(e.target.value)}>
-              {DOC_TYPES.map((t) => <option key={t}>{t}</option>)}
+              {docTypeOptions.map((t) => <option key={t}>{t}</option>)}
             </select>
           </div>
           <div className="field" style={{ maxWidth: 280 }}>

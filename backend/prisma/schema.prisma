@@ -17,9 +17,13 @@ enum UserRole {
   SUPER_ADMIN
 }
 
-enum ClaimType {
-  TRAVEL
+// Point 2: the four claim categories a claim (or an individual coverage
+// line within a claim) can belong to.
+enum ClaimCategory {
   MEDICAL
+  NON_MEDICAL
+  TRAVEL
+  PERSONAL_ACCIDENT
 }
 
 // High-level lifecycle stage — mirrors the BRD flowchart.
@@ -79,32 +83,101 @@ model User {
   documents      Document[]
 }
 
+// ---------- Point 5: reusable plan catalog ----------
+// A PlanTemplate is what the insurer actually sells (e.g. "Bronze 25",
+// "Platinum 1000" — seeded straight from travel_crm_Sub_Limits.xlsx).
+// Every policy is issued *against* a plan template, and the policy's own
+// Coverage rows are a materialized copy of the template's PlanCoverage rows
+// at the time the policy was issued — so later edits to a plan template
+// never silently change an already-issued policy's limits.
+model PlanTemplate {
+  id          String   @id @default(cuid())
+  name        String   @unique // e.g. "Bronze 25", "Platinum 1000"
+  description String?
+  isActive    Boolean  @default(true)
+  coverages   PlanCoverage[]
+  policies    Policy[]
+  createdAt   DateTime @default(now())
+}
+
+model PlanCoverage {
+  id               String        @id @default(cuid())
+  planTemplateId   String
+  planTemplate     PlanTemplate  @relation(fields: [planTemplateId], references: [id], onDelete: Cascade)
+  category         ClaimCategory
+  coverageName     String
+  subCoverName     String?       // only meaningful for MEDICAL category
+  sumInsured       Float
+  subLimitText     String?       // free-text sub-limit description (matches the excel's "USD 1500 Per Day up to 30 Days" style values)
+  deductible       String?
+}
+
+// ---------- Point 1: dynamic, admin-configurable document requirements ----------
+// Seeded straight from the BRD's coverage/document checklist (36 coverages).
+// Admin can add/edit/remove required documents per coverage name without
+// touching code — every claim workspace's Documents tab reads this list
+// live based on the coverages actually selected on that claim.
+model DocumentRequirement {
+  id                String   @id @default(cuid())
+  coverageName      String   @unique
+  requiredDocuments String[]
+  updatedAt         DateTime @updatedAt
+}
+
 model Policy {
-  id             String   @id @default(cuid())
-  policyNumber   String   @unique
+  id             String        @id @default(cuid())
+  policyNumber   String        @unique
   holderName     String
   planName       String
-  claimType      ClaimType @default(TRAVEL)
+  claimCategory  ClaimCategory @default(TRAVEL)
   startDate      DateTime
   endDate        DateTime
   issuanceDate   DateTime
+  issuancePlace  String?
   geoCoverage    String
   issuanceBranch String?
+  countryVisited String?
+  countryOfResidence String?
+  deductible     String?
+  nomineeName    String?
   ownerId        String
-  owner          User     @relation("PolicyOwner", fields: [ownerId], references: [id])
-  isActive       Boolean  @default(true)
+  owner          User          @relation("PolicyOwner", fields: [ownerId], references: [id])
+  isActive       Boolean       @default(true)
+
+  planTemplateId String?
+  planTemplate   PlanTemplate? @relation(fields: [planTemplateId], references: [id])
+
   coverages      Coverage[]
+  members        InsuredMember[]
   claims         Claim[]
-  createdAt      DateTime @default(now())
+  createdAt      DateTime      @default(now())
 }
 
 model Coverage {
-  id         String  @id @default(cuid())
-  policyId   String
-  policy     Policy  @relation(fields: [policyId], references: [id], onDelete: Cascade)
-  name       String
-  sumInsured Float
-  deductible String?
+  id           String        @id @default(cuid())
+  policyId     String
+  policy       Policy        @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  category     ClaimCategory @default(TRAVEL)
+  name         String
+  subCoverName String?
+  sumInsured   Float
+  subLimitText String?
+  deductible   String?
+}
+
+// ---------- Point 12: real insured members, scoped to a policy ----------
+// A claim can only ever be raised for member(s) who actually exist on the
+// policy — the claim initiation screen reads this list to populate the
+// member picker instead of a free-text field.
+model InsuredMember {
+  id             String   @id @default(cuid())
+  policyId       String
+  policy         Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  name           String
+  dob            DateTime?
+  passportNumber String?
+  relationship   String?  // Self, Spouse, Child, Parent, etc.
+  createdAt      DateTime @default(now())
 }
 
 model Claim {
@@ -113,8 +186,16 @@ model Claim {
   parentClaimNumber      String
   policyId               String
   policy                 Policy      @relation(fields: [policyId], references: [id])
-  claimType              ClaimType
-  coverages              String[]
+
+  // Point 2: the primary category picked at Initiate Claim. Individual
+  // coverage line items (below) each carry their own category too, since a
+  // single claim can legitimately mix e.g. Medical + Non-Medical coverages
+  // (point 4/8/9) even though it's filed under one primary category.
+  claimCategory          ClaimCategory
+
+  coverages              String[]    // display-only summary of coverage names, kept for quick listing
+  memberIds              String[]    // InsuredMember ids this claim was raised for (point 12)
+
   stage                  ClaimStage  @default(INTIMATION)
   status                 ClaimStatus @default(DRAFT)
 
@@ -125,6 +206,15 @@ model Claim {
   // Structured core fields used for search / listing
   insurerClaimIntimationNo   String?
   insurerClaimRegistrationNo String?
+
+  // Point 4/7/8/9: one row per selected coverage — category, cover name,
+  // sub-cover name (medical only), initial reserve (renamed from "estimated
+  // loss"), sub-limit, running total and GOP issue date all live per-item
+  // here rather than as flat claim-level fields, because every coverage on
+  // a multi-coverage claim needs its own values. Stored as JSON (an array
+  // of objects) for the same reason the stage payloads below are JSON —
+  // the shape can evolve without a migration.
+  coverageItems  Json  @default("[]")
 
   // Flexible stage payloads — each stores every wireframe field for that
   // stage as JSON, keyed by field id. Keeping these as JSONB lets the form
@@ -145,6 +235,11 @@ model Claim {
   updatedAt DateTime @updatedAt
 }
 
+// Point 11: every activity log row already carries who (userId/role) and
+// when (createdAt). "action" doubles as a free-text remark when an agent
+// explicitly adds one via POST /claims/:id/remarks — so the same table
+// serves both the automatic system trail and manual remarks, all in one
+// chronological, attributable feed.
 model ActivityLog {
   id        String   @id @default(cuid())
   claimId   String

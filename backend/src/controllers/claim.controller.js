@@ -78,36 +78,87 @@ const listClaims = asyncHandler(async (req, res) => {
 const getClaim = asyncHandler(async (req, res) => {
   const claim = await prisma.claim.findUnique({
     where: { id: req.params.id },
-    include: { policy: { include: { coverages: true } }, activityLogs: { orderBy: { createdAt: "asc" }, include: { user: true } } },
+    include: {
+      policy: { include: { coverages: true, members: true } },
+      activityLogs: { orderBy: { createdAt: "asc" }, include: { user: true } },
+    },
   });
   if (!claim) return res.status(404).json({ message: "Claim not found." });
   res.json(claim);
 });
 
-// POST /api/claims
-// Body: { policyId, claimType, coverages: string[], intimationData: {...} }
-// Callable by CUSTOMER (self-service) or AGENT (on behalf of a customer).
-const createClaim = asyncHandler(async (req, res) => {
-  const { policyId, claimType, coverages, intimationData } = req.body;
+// GET /api/claims/:id/required-documents
+// Point 1: computed live from the claim's actual coverageItems, not a
+// hardcoded list — every claim can require a different document set.
+const getRequiredDocuments = asyncHandler(async (req, res) => {
+  const claim = await prisma.claim.findUnique({ where: { id: req.params.id } });
+  if (!claim) return res.status(404).json({ message: "Claim not found." });
 
-  if (!policyId || !claimType || !Array.isArray(coverages) || coverages.length === 0) {
-    return res.status(400).json({ message: "policyId, claimType and at least one coverage are required." });
+  const coverageNames = [...new Set((claim.coverageItems || []).map((i) => i.coverageName).filter(Boolean))];
+  const rows = await prisma.documentRequirement.findMany({ where: { coverageName: { in: coverageNames } } });
+
+  const uploaded = await prisma.document.findMany({ where: { claimId: claim.id }, select: { docType: true } });
+  const uploadedTypes = new Set(uploaded.map((d) => d.docType));
+
+  const documents = [];
+  const seen = new Set();
+  for (const row of rows) {
+    for (const docType of row.requiredDocuments) {
+      if (seen.has(docType)) continue;
+      seen.add(docType);
+      documents.push({ docType, forCoverage: row.coverageName, uploaded: uploadedTypes.has(docType) });
+    }
+  }
+  res.json({ coverageNames, documents });
+});
+
+// POST /api/claims
+// Body: { policyId, claimCategory, memberIds: string[], coverageItems: [{category, coverageName, subCoverName?, initialReserve}], intimationData }
+// Callable by CUSTOMER (self-service) or AGENT (on behalf of a customer).
+// Point 2/3/4/7/12: category picker, cover+sub-cover per item, multiple
+// coverages at once each with its own initial reserve, and members are
+// restricted to the ones actually on the policy.
+const createClaim = asyncHandler(async (req, res) => {
+  const { policyId, claimCategory, memberIds, coverageItems, intimationData } = req.body;
+
+  if (!policyId || !claimCategory || !Array.isArray(coverageItems) || coverageItems.length === 0) {
+    return res.status(400).json({ message: "policyId, claimCategory and at least one coverage item are required." });
   }
 
-  const policy = await prisma.policy.findUnique({ where: { id: policyId } });
+  const policy = await prisma.policy.findUnique({ where: { id: policyId }, include: { members: true } });
   if (!policy) return res.status(404).json({ message: "Policy not found." });
 
   if (req.user.role === "CUSTOMER" && policy.ownerId !== req.user.id) {
     return res.status(403).json({ message: "You can only initiate claims against your own policy." });
   }
 
+  // Point 12 — a claim can only be raised for members who actually exist on this policy.
+  const validMemberIds = new Set(policy.members.map((m) => m.id));
+  const chosenMemberIds = (memberIds || []).filter((id) => validMemberIds.has(id));
+  if ((memberIds || []).length > 0 && chosenMemberIds.length === 0) {
+    return res.status(400).json({ message: "None of the selected members belong to this policy." });
+  }
+
+  const normalizedItems = coverageItems.map((item) => ({
+    category: item.category || claimCategory,
+    coverageName: item.coverageName,
+    subCoverName: item.subCoverName || null,
+    initialReserve: Number(item.initialReserve) || 0,
+    subLimitAmount: null,
+    payableAmount: null,
+    gopIssueDate: null,
+    remarks: item.remarks || null,
+  }));
+
   const claim = await prisma.claim.create({
     data: {
-      claimNumber: generateClaimNumber(claimType),
+      claimNumber: generateClaimNumber(claimCategory),
       parentClaimNumber: generateParentClaimNumber(),
       policyId,
-      claimType,
-      coverages,
+      claimCategory,
+      coverages: normalizedItems.map((i) => i.coverageName),
+      memberIds: chosenMemberIds,
+      coverageItems: normalizedItems,
       stage: "INTIMATION",
       status: "DRAFT",
       createdById: req.user.id,
@@ -116,8 +167,48 @@ const createClaim = asyncHandler(async (req, res) => {
     },
   });
 
-  await logActivity(claim.id, req.user, "Claim initiated", { coverages, claimType });
+  await logActivity(claim.id, req.user, "Claim initiated", { coverages: claim.coverages, claimCategory });
   res.status(201).json(claim);
+});
+
+// PATCH /api/claims/:id/coverage-items
+// Point 4/7/8/9/10: lets the Agent (Registration) or Insurer (Assessment) fill
+// in the per-coverage sub-limit, payable amount, GOP issue date and remarks
+// that only become known once the claim moves past Intimation. Each item is
+// matched by array index — the frontend always sends the full array back.
+const updateCoverageItems = asyncHandler(async (req, res) => {
+  const claim = await prisma.claim.findUnique({ where: { id: req.params.id } });
+  if (!claim) return res.status(404).json({ message: "Claim not found." });
+
+  const allowedStages = { AGENT: ["INTIMATION", "REGISTRATION"], INSURER: ["ASSESSMENT"], SUPER_ADMIN: ["INTIMATION", "REGISTRATION", "ASSESSMENT"] };
+  const allowed = allowedStages[req.user.role];
+  if (!allowed || !allowed.includes(claim.stage)) {
+    return res.status(403).json({ message: "You cannot edit coverage items at this stage." });
+  }
+
+  if (!Array.isArray(req.body.coverageItems)) {
+    return res.status(400).json({ message: "coverageItems[] is required." });
+  }
+
+  const updated = await prisma.claim.update({
+    where: { id: claim.id },
+    data: { coverageItems: req.body.coverageItems },
+  });
+  await logActivity(claim.id, req.user, "Coverage item details updated");
+  res.json(updated);
+});
+
+// POST /api/claims/:id/remarks — Agent/Insurer, point 11
+// A manual, attributable note — shows up in the same chronological Activity
+// Log as every automatic system action, tagged with who wrote it and when.
+const addRemark = asyncHandler(async (req, res) => {
+  const claim = await prisma.claim.findUnique({ where: { id: req.params.id } });
+  if (!claim) return res.status(404).json({ message: "Claim not found." });
+  const { message } = req.body;
+  if (!message || !message.trim()) return res.status(400).json({ message: "Remark text is required." });
+
+  await logActivity(claim.id, req.user, `Remark: ${message.trim()}`, { isManualRemark: true });
+  res.status(201).json({ message: "Remark added." });
 });
 
 // PATCH /api/claims/:id/intimation
@@ -197,7 +288,7 @@ const validateClaim = asyncHandler(async (req, res) => {
   // and unlock the Registration stage, which only the Agent portal can see.
   const carriedForward = {
     regFileClaim: "Yes",
-    regClaimType: claim.claimType,
+    regClaimType: claim.claimCategory,
     regClaimantName: claim.intimationData.claimantName || claim.intimationData.m1Name,
     regClaimantMobile: claim.intimationData.claimantMobile || claim.intimationData.m1Contact,
     regCommEmail: claim.intimationData.commEmail,
@@ -271,7 +362,7 @@ const submitToInsurer = asyncHandler(async (req, res) => {
       insurerClaimRegistrationNo: claim.insurerClaimRegistrationNo || generateInsurerNumber("CRN"),
       assessmentData: {
         assessmentNumber: generateInsurerNumber("ASMT"),
-        claimTypeAsReg: claim.claimType,
+        claimTypeAsReg: claim.claimCategory,
         ...claim.assessmentData,
       },
     },
@@ -394,6 +485,7 @@ const closeClaim = asyncHandler(async (req, res) => {
 module.exports = {
   listClaims,
   getClaim,
+  getRequiredDocuments,
   createClaim,
   updateIntimation,
   submitIntimation,
@@ -402,6 +494,8 @@ module.exports = {
   updateRegistration,
   submitToInsurer,
   updateAssessment,
+  updateCoverageItems,
+  addRemark,
   insurerDecision,
   updatePayment,
   closeClaim,

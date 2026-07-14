@@ -5,7 +5,7 @@ const { asyncHandler } = require("../middleware/errorHandler");
 const getMyPolicies = asyncHandler(async (req, res) => {
   const policies = await prisma.policy.findMany({
     where: { ownerId: req.user.id },
-    include: { coverages: true },
+    include: { coverages: true, members: true, planTemplate: { include: { coverages: true } } },
     orderBy: { createdAt: "desc" },
   });
   res.json(policies);
@@ -23,7 +23,7 @@ const searchPolicies = asyncHandler(async (req, res) => {
         { holderName: { contains: q, mode: "insensitive" } },
       ],
     },
-    include: { coverages: true, owner: true },
+    include: { coverages: true, owner: true, members: true, planTemplate: { include: { coverages: true } } },
     take: 20,
   });
 
@@ -39,7 +39,7 @@ const searchPolicies = asyncHandler(async (req, res) => {
 const getPolicyById = asyncHandler(async (req, res) => {
   const policy = await prisma.policy.findUnique({
     where: { id: req.params.id },
-    include: { coverages: true, owner: true },
+    include: { coverages: true, owner: true, members: true, planTemplate: { include: { coverages: true } } },
   });
   if (!policy) return res.status(404).json({ message: "Policy not found." });
   res.json(policy);

@@ -2,20 +2,23 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import client from "../../api/client";
 import DocumentUpload from "../../components/DocumentUpload";
+import CoverageItemsEditor from "../../components/CoverageItemsEditor";
 import { INTIMATION_SCHEMA, REGISTRATION_SCHEMA } from "../../lib/fieldSchemas";
+import { FALLBACK_COVER_NAMES, MEDICAL_SUB_COVERS, CATEGORY_LABELS } from "../../lib/catalog";
 import {
   Card, InfoTile, PrimaryBtn, SecondaryBtn, DangerBtn, EmptyNote,
   StageStepper, SchemaGroup, StatusBadge, FieldRow, Badge,
 } from "../../components/ui";
 import { SOURCE_META } from "../../lib/permissions";
 
-const TABS = ["Intimation", "Registration", "Documents", "Payment", "Activity Log"];
+const TABS = ["Intimation", "Registration", "Coverage Items", "Documents", "Payment", "Activity Log & Remarks"];
 
 export default function AgentClaimWorkspace() {
   const { id } = useParams();
   const [claim, setClaim] = useState(null);
   const [tab, setTab] = useState("Intimation");
   const [deficiencyReason, setDeficiencyReason] = useState("");
+  const [remarkText, setRemarkText] = useState("");
   const navigate = useNavigate();
 
   const load = useCallback(async () => {
@@ -30,10 +33,12 @@ export default function AgentClaimWorkspace() {
   const setIntimationField = (fid, v) => setClaim((c) => ({ ...c, intimationData: { ...c.intimationData, [fid]: v } }));
   const setRegistrationField = (fid, v) => setClaim((c) => ({ ...c, registrationData: { ...c.registrationData, [fid]: v } }));
   const setPaymentField = (fid, v) => setClaim((c) => ({ ...c, paymentData: { ...c.paymentData, [fid]: v } }));
+  const setCoverageItems = (items) => setClaim((c) => ({ ...c, coverageItems: items }));
 
   const saveIntimation = async () => client.patch(`/claims/${id}/intimation`, { intimationData: claim.intimationData });
   const saveRegistration = async () => client.patch(`/claims/${id}/registration`, { registrationData: claim.registrationData });
   const savePayment = async () => client.patch(`/claims/${id}/payment`, { paymentData: claim.paymentData });
+  const saveCoverageItems = async () => client.patch(`/claims/${id}/coverage-items`, { coverageItems: claim.coverageItems });
 
   const passValidation = async () => {
     await saveIntimation();
@@ -47,6 +52,7 @@ export default function AgentClaimWorkspace() {
   };
   const submitToInsurer = async () => {
     await saveRegistration();
+    await saveCoverageItems();
     await client.post(`/claims/${id}/submit-to-insurer`);
     await load();
   };
@@ -55,8 +61,15 @@ export default function AgentClaimWorkspace() {
     await client.post(`/claims/${id}/close`);
     await load();
   };
+  const submitRemark = async () => {
+    if (!remarkText.trim()) return;
+    await client.post(`/claims/${id}/remarks`, { message: remarkText.trim() });
+    setRemarkText("");
+    await load();
+  };
 
   const stageIdx = ["INTIMATION", "REGISTRATION", "ASSESSMENT", "PAYMENT"].indexOf(claim.stage);
+  const canEditCoverageItems = ["INTIMATION", "REGISTRATION"].includes(claim.stage);
 
   return (
     <div>
@@ -68,7 +81,7 @@ export default function AgentClaimWorkspace() {
           <div>
             <div style={{ fontFamily: "monospace", fontWeight: 700, color: "var(--brand-blue-dark)" }}>{claim.claimNumber}</div>
             <div style={{ fontSize: 11.5, color: "var(--muted)" }}>
-              {claim.claimType} · {claim.coverages.join(", ")} · Policy {claim.policy?.policyNumber}
+              {CATEGORY_LABELS[claim.claimCategory] || claim.claimCategory} · {claim.coverages.join(", ")} · Policy {claim.policy?.policyNumber}
             </div>
           </div>
           <StatusBadge status={claim.status} />
@@ -139,6 +152,23 @@ export default function AgentClaimWorkspace() {
           )
         )}
 
+        {tab === "Coverage Items" && (
+          <Card title="Coverage Items" subtitle="Point 4/7/8/9: one row per coverage on this claim, each with its own initial reserve, sub-limit and running total">
+            <CoverageItemsEditor
+              items={claim.coverageItems || []}
+              onChange={setCoverageItems}
+              mode="review"
+              coverNameCatalog={FALLBACK_COVER_NAMES}
+              medicalSubCovers={MEDICAL_SUB_COVERS}
+            />
+            {canEditCoverageItems && (
+              <div className="action-bar" style={{ marginTop: 16 }}>
+                <SecondaryBtn onClick={saveCoverageItems}>Save Coverage Items</SecondaryBtn>
+              </div>
+            )}
+          </Card>
+        )}
+
         {tab === "Documents" && <DocumentUpload claimId={id} />}
 
         {tab === "Payment" && (
@@ -172,13 +202,24 @@ export default function AgentClaimWorkspace() {
           )
         )}
 
-        {tab === "Activity Log" && (
+        {tab === "Activity Log & Remarks" && (
           <div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+              <input
+                value={remarkText}
+                onChange={(e) => setRemarkText(e.target.value)}
+                placeholder="Add a remark — who did what, visible to everyone with attribution"
+                style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 8, padding: "9px 11px", fontSize: 13 }}
+                onKeyDown={(e) => e.key === "Enter" && submitRemark()}
+              />
+              <PrimaryBtn onClick={submitRemark}>Add Remark</PrimaryBtn>
+            </div>
             {claim.activityLogs?.length === 0 && <EmptyNote text="No activity yet." />}
             {claim.activityLogs?.map((l) => (
               <div key={l.id} style={{ display: "flex", gap: 12, fontSize: 12.5, borderBottom: "1px solid var(--line)", padding: "9px 0" }}>
                 <Badge color={SOURCE_META[l.role?.toLowerCase()]?.color || "#667085"} bg={SOURCE_META[l.role?.toLowerCase()]?.bg || "#EEF0F4"}>{l.role}</Badge>
-                <span>{l.action}</span>
+                <span style={{ fontWeight: l.meta?.isManualRemark ? 700 : 400 }}>{l.action}</span>
+                <span style={{ color: "var(--muted)" }}>({l.user?.name})</span>
                 <span style={{ marginLeft: "auto", color: "var(--muted)" }}>{new Date(l.createdAt).toLocaleString()}</span>
               </div>
             ))}

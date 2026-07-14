@@ -2,8 +2,12 @@ const express = require("express");
 const { authenticate, authorizeRoles } = require("../middleware/auth");
 const {
   listPolicies, createPolicy, updatePolicy, addCoverage, deleteCoverage,
+  addMember, deleteMember,
+  listPlanTemplates, createPlanTemplate, addPlanCoverage, deletePlanCoverage,
+  upsertDocumentRequirement, deleteDocumentRequirement,
   listUsers, createUser, updateUser,
   listNotifications,
+  salesDataFieldSpec, syncInsurerPolicies,
 } = require("../controllers/admin.controller");
 
 const router = express.Router();
@@ -16,10 +20,25 @@ router.patch("/policies/:id", updatePolicy);
 router.post("/policies/:id/coverages", addCoverage);
 router.delete("/coverages/:coverageId", deleteCoverage);
 
+router.post("/policies/:id/members", addMember);
+router.delete("/members/:memberId", deleteMember);
+
+router.get("/plans", listPlanTemplates);
+router.post("/plans", createPlanTemplate);
+router.post("/plans/:id/coverages", addPlanCoverage);
+router.delete("/plan-coverages/:coverageId", deletePlanCoverage);
+
+router.post("/document-requirements", upsertDocumentRequirement);
+router.delete("/document-requirements/:id", deleteDocumentRequirement);
+
 router.get("/users", listUsers);
 router.post("/users", createUser);
 router.patch("/users/:id", updateUser);
 
 router.get("/notifications", listNotifications);
+
+// Point 13 — insurer sales-data feed
+router.get("/insurer-sync/fields", salesDataFieldSpec);
+router.post("/insurer-sync", syncInsurerPolicies);
 
 module.exports = router;

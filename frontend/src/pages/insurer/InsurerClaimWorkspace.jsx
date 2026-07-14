@@ -2,22 +2,26 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import client from "../../api/client";
 import DocumentUpload from "../../components/DocumentUpload";
+import CoverageItemsEditor from "../../components/CoverageItemsEditor";
 import {
   INTIMATION_SCHEMA, REGISTRATION_SCHEMA,
   ASSESSMENT_CORE, ASSESSMENT_MEDICAL, ASSESSMENT_PA, ASSESSMENT_NONMED, ASSESSMENT_COMMON,
 } from "../../lib/fieldSchemas";
+import { FALLBACK_COVER_NAMES, MEDICAL_SUB_COVERS, CATEGORY_LABELS } from "../../lib/catalog";
 import {
   Card, PrimaryBtn, SecondaryBtn, DangerBtn, EmptyNote,
-  StageStepper, SchemaGroup, StatusBadge,
+  StageStepper, SchemaGroup, StatusBadge, Badge,
 } from "../../components/ui";
+import { SOURCE_META } from "../../lib/permissions";
 
-const TABS = ["Assessment", "Documents", "Intimation (read-only)", "Registration (read-only)", "Activity Log"];
+const TABS = ["Assessment", "Coverage Items", "Documents", "Intimation (read-only)", "Registration (read-only)", "Activity Log & Remarks"];
 
 export default function InsurerClaimWorkspace() {
   const { id } = useParams();
   const [claim, setClaim] = useState(null);
   const [tab, setTab] = useState("Assessment");
   const [remarks, setRemarks] = useState("");
+  const [remarkText, setRemarkText] = useState("");
   const navigate = useNavigate();
 
   const load = useCallback(async () => {
@@ -30,15 +34,24 @@ export default function InsurerClaimWorkspace() {
   if (!claim) return <EmptyNote text="Loading claim…" />;
 
   const setAssessmentField = (fid, v) => setClaim((c) => ({ ...c, assessmentData: { ...c.assessmentData, [fid]: v } }));
+  const setCoverageItems = (items) => setClaim((c) => ({ ...c, coverageItems: items }));
   const saveAssessment = async () => client.patch(`/claims/${id}/assessment`, { assessmentData: claim.assessmentData });
+  const saveCoverageItems = async () => client.patch(`/claims/${id}/coverage-items`, { coverageItems: claim.coverageItems });
 
   const decide = async (decision) => {
     await saveAssessment();
+    await saveCoverageItems();
     await client.post(`/claims/${id}/decision`, { decision, remarks });
     await load();
   };
+  const submitRemark = async () => {
+    if (!remarkText.trim()) return;
+    await client.post(`/claims/${id}/remarks`, { message: remarkText.trim() });
+    setRemarkText("");
+    await load();
+  };
 
-  const isMedical = claim.claimType === "MEDICAL";
+  const isMedical = claim.claimCategory === "MEDICAL";
   const editable = claim.stage === "ASSESSMENT";
 
   return (
@@ -50,7 +63,7 @@ export default function InsurerClaimWorkspace() {
         <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 4 }}>
           <div>
             <div style={{ fontFamily: "monospace", fontWeight: 700, color: "var(--brand-blue-dark)" }}>{claim.claimNumber}</div>
-            <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{claim.claimType} · {claim.coverages.join(", ")}</div>
+            <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{CATEGORY_LABELS[claim.claimCategory] || claim.claimCategory} · {claim.coverages.join(", ")}</div>
           </div>
           <StatusBadge status={claim.status} />
         </div>
@@ -97,6 +110,23 @@ export default function InsurerClaimWorkspace() {
           </>
         )}
 
+        {tab === "Coverage Items" && (
+          <Card title="Coverage Items" subtitle="Point 4/7/8/9/10: sub-limit, payable amount, GOP issue date and remarks per coverage, with a running total">
+            <CoverageItemsEditor
+              items={claim.coverageItems || []}
+              onChange={setCoverageItems}
+              mode="review"
+              coverNameCatalog={FALLBACK_COVER_NAMES}
+              medicalSubCovers={MEDICAL_SUB_COVERS}
+            />
+            {editable && (
+              <div className="action-bar" style={{ marginTop: 16 }}>
+                <SecondaryBtn onClick={saveCoverageItems}>Save Coverage Items</SecondaryBtn>
+              </div>
+            )}
+          </Card>
+        )}
+
         {tab === "Documents" && <DocumentUpload claimId={id} />}
 
         {tab === "Intimation (read-only)" &&
@@ -109,12 +139,23 @@ export default function InsurerClaimWorkspace() {
             <SchemaGroup key={g.title} group={g} data={claim.registrationData} onChange={() => {}} role="VIEW" stage="NONE" />
           ))}
 
-        {tab === "Activity Log" && (
+        {tab === "Activity Log & Remarks" && (
           <div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+              <input
+                value={remarkText}
+                onChange={(e) => setRemarkText(e.target.value)}
+                placeholder="Add a remark — who did what, visible to everyone with attribution"
+                style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 8, padding: "9px 11px", fontSize: 13 }}
+                onKeyDown={(e) => e.key === "Enter" && submitRemark()}
+              />
+              <PrimaryBtn onClick={submitRemark}>Add Remark</PrimaryBtn>
+            </div>
             {claim.activityLogs?.map((l) => (
               <div key={l.id} style={{ display: "flex", gap: 12, fontSize: 12.5, borderBottom: "1px solid var(--line)", padding: "9px 0" }}>
-                <span style={{ fontWeight: 700 }}>{l.role}</span>
-                <span>{l.action}</span>
+                <Badge color={SOURCE_META[l.role?.toLowerCase()]?.color || "#667085"} bg={SOURCE_META[l.role?.toLowerCase()]?.bg || "#EEF0F4"}>{l.role}</Badge>
+                <span style={{ fontWeight: l.meta?.isManualRemark ? 700 : 400 }}>{l.action}</span>
+                <span style={{ color: "var(--muted)" }}>({l.user?.name})</span>
                 <span style={{ marginLeft: "auto", color: "var(--muted)" }}>{new Date(l.createdAt).toLocaleString()}</span>
               </div>
             ))}

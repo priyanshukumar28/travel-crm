@@ -9,6 +9,8 @@ const policyRoutes = require("./routes/policy.routes");
 const claimRoutes = require("./routes/claim.routes");
 const { claimScopedRouter: claimDocumentRoutes, documentRouter } = require("./routes/document.routes");
 const adminRoutes = require("./routes/admin.routes");
+const planTemplateRoutes = require("./routes/planTemplate.routes");
+const documentRequirementRoutes = require("./routes/documentRequirement.routes");
 
 const app = express();
 
@@ -41,6 +43,8 @@ app.use("/api/claims", claimRoutes);
 app.use("/api/claims/:id/documents", claimDocumentRoutes);
 app.use("/api/documents", documentRouter);
 app.use("/api/admin", adminRoutes);
+app.use("/api/plans", planTemplateRoutes);
+app.use("/api/document-requirements", documentRequirementRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

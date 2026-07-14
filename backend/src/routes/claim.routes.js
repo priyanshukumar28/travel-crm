@@ -3,6 +3,7 @@ const { authenticate, authorizeRoles } = require("../middleware/auth");
 const {
   listClaims,
   getClaim,
+  getRequiredDocuments,
   createClaim,
   updateIntimation,
   submitIntimation,
@@ -11,6 +12,8 @@ const {
   updateRegistration,
   submitToInsurer,
   updateAssessment,
+  updateCoverageItems,
+  addRemark,
   insurerDecision,
   updatePayment,
   closeClaim,
@@ -22,6 +25,7 @@ router.use(authenticate);
 
 router.get("/", listClaims);
 router.get("/:id", getClaim);
+router.get("/:id/required-documents", getRequiredDocuments);
 
 // Intimation — Customer (self-service) or Agent (on behalf of customer)
 router.post("/", authorizeRoles("CUSTOMER", "AGENT", "SUPER_ADMIN"), createClaim);
@@ -39,6 +43,12 @@ router.post("/:id/submit-to-insurer", authorizeRoles("AGENT", "SUPER_ADMIN"), su
 // Assessment & decisioning — Insurer only
 router.patch("/:id/assessment", authorizeRoles("INSURER", "SUPER_ADMIN"), updateAssessment);
 router.post("/:id/decision", authorizeRoles("INSURER", "SUPER_ADMIN"), insurerDecision);
+
+// Per-coverage sub-limit/payable/GOP/remarks — Agent (Registration) or Insurer (Assessment)
+router.patch("/:id/coverage-items", authorizeRoles("AGENT", "INSURER", "SUPER_ADMIN"), updateCoverageItems);
+
+// Manual attributable remarks — Agent or Insurer, any stage
+router.post("/:id/remarks", authorizeRoles("AGENT", "INSURER", "SUPER_ADMIN"), addRemark);
 
 // Payment & closure — Agent only
 router.patch("/:id/payment", authorizeRoles("AGENT", "SUPER_ADMIN"), updatePayment);

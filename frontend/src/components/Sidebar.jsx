@@ -1,6 +1,6 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { Luggage, Plus, ShieldCheck, Settings, Users, Mail } from "lucide-react";
+import { Luggage, Plus, ShieldCheck, Settings, Users, Mail, FileText, RefreshCw } from "lucide-react";
 
 const NAV = {
   CUSTOMER: [
@@ -15,6 +15,9 @@ const NAV = {
   ],
   SUPER_ADMIN: [
     { to: "/admin", label: "Policies & Coverage", Icon: Settings },
+    { to: "/admin/plans", label: "Plans", Icon: FileText },
+    { to: "/admin/document-requirements", label: "Document Requirements", Icon: FileText },
+    { to: "/admin/insurer-sync", label: "Insurer Sync", Icon: RefreshCw },
     { to: "/admin/users", label: "Users", Icon: Users },
     { to: "/admin/notifications", label: "Notification Outbox", Icon: Mail },
   ],

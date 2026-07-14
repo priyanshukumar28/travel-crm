@@ -114,9 +114,10 @@ export function FieldInput({ field, value, onChange, editable }) {
   return <input type={field.type === "number" ? "number" : field.type} {...common} />;
 }
 
-export function FieldRow({ field, value, onChange, role, stage }) {
+export function FieldRow({ field, value, onChange, role, stage, data }) {
   const meta = SOURCE_META[field.source];
   const editable = isFieldEditable({ role, source: field.source, stage });
+  const showReveal = field.reveal && value === field.reveal.equals;
   return (
     <div className="field">
       <div className="field-label">
@@ -127,6 +128,18 @@ export function FieldRow({ field, value, onChange, role, stage }) {
         <Badge color={meta.color} bg={meta.bg}>{meta.label}</Badge>
       </div>
       <FieldInput field={field} value={value} onChange={onChange} editable={editable} />
+      {showReveal && (
+        <div style={{ marginTop: 8, paddingLeft: 10, borderLeft: "2px solid var(--brand-orange)" }}>
+          <FieldRow
+            field={field.reveal.field}
+            value={data?.[field.reveal.field.id]}
+            onChange={onChange}
+            role={role}
+            stage={stage}
+            data={data}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -140,7 +153,7 @@ export function SchemaGroup({ group, data, onChange, role, stage, defaultOpen })
       </summary>
       <div className="group-body">
         {group.fields.map((f) => (
-          <FieldRow key={f.id} field={f} value={data?.[f.id]} onChange={onChange} role={role} stage={stage} />
+          <FieldRow key={f.id} field={f} value={data?.[f.id]} onChange={onChange} role={role} stage={stage} data={data} />
         ))}
       </div>
     </details>
@@ -174,7 +187,7 @@ export function ClaimRow({ claim, onClick }) {
       <div>
         <div className="cid">{claim.claimNumber}</div>
         <div className="meta">
-          {claim.claimType} · {claim.coverages?.join(", ")} · Policy {claim.policy?.policyNumber}
+          {claim.claimCategory} · {claim.coverages?.join(", ")} · Policy {claim.policy?.policyNumber}
         </div>
       </div>
       <StatusBadge status={claim.status} />

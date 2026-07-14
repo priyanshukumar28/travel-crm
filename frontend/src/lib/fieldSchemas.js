@@ -39,7 +39,7 @@ export const INTIMATION_SCHEMA = [
       { id: "claimantName", label: "Claimant Name", type: "text", source: "customer", req: "**" },
       { id: "claimantMobile", label: "Claimant Mobile Number", type: "text", source: "customer", req: "**" },
       { id: "claimantEmail", label: "Claimant Email ID", type: "text", source: "customer", req: "**" },
-      { id: "relationship", label: "Relationship with Insured", type: "select", source: "customer", options: ["Self", "Father", "Mother", "Son", "Daughter", "Spouse", "Siblings", "In-Laws", "Others"] },
+      { id: "relationship", label: "Relationship with Insured", type: "select", source: "customer", options: ["Self", "Father", "Mother", "Son", "Daughter", "Spouse", "Siblings", "In-Laws", "Others"], reveal: { equals: "Others", field: { id: "relationshipOther", label: "Please specify relationship", type: "text", source: "customer" } } },
     ],
   },
   {
@@ -72,7 +72,7 @@ export const INTIMATION_SCHEMA = [
       { id: "docReceiveDate", label: "Intimation Doc. Receive Date", type: "date", source: "agent" },
       { id: "courierName", label: "Courier Name", type: "text", source: "agent" },
       { id: "podRef", label: "POD / Reference No.", type: "text", source: "agent" },
-      { id: "documentType", label: "Document Type", type: "select", source: "agent", options: ["Fresh Intimation", "Fresh claim documents", "Query reply", "Verification Report", "Others"] },
+      { id: "documentType", label: "Document Type", type: "select", source: "agent", options: ["Fresh Intimation", "Fresh claim documents", "Query reply", "Verification Report", "Others"], reveal: { equals: "Others", field: { id: "documentTypeOther", label: "Please specify document type", type: "text", source: "agent" } } },
       { id: "specialEnclosuresFlag", label: "Special Enclosures Flag", type: "select", source: "agent", options: ["Yes", "No"] },
     ],
   },
@@ -94,9 +94,9 @@ export const REGISTRATION_SCHEMA = [
     title: "Loss Details",
     fields: [
       { id: "regDateOfLoss", label: "Date of Loss", type: "date", source: "autofill" },
-      { id: "lossType", label: "Loss Type", type: "select", source: "agent", req: "*", options: ["Baggage Loss", "Medical Emergency", "Trip Cancellation", "Flight Delay", "Personal Accident", "Others"] },
+      { id: "lossType", label: "Loss Type", type: "select", source: "agent", req: "*", options: ["Baggage Loss", "Medical Emergency", "Trip Cancellation", "Flight Delay", "Personal Accident", "Others"], reveal: { equals: "Others", field: { id: "lossTypeOther", label: "Please specify loss type", type: "text", source: "agent" } } },
       { id: "causeType", label: "Cause Type", type: "text", source: "agent", req: "*" },
-      { id: "estimatedLossDetails", label: "Estimated Loss Details", type: "text", source: "agent", req: "*" },
+      { id: "estimatedLossDetails", label: "Initial Reserve Details", type: "text", source: "agent", req: "*" },
       { id: "majorEventCode", label: "Major Event Code", type: "text", source: "agent" },
     ],
   },
@@ -105,8 +105,9 @@ export const REGISTRATION_SCHEMA = [
     fields: [
       { id: "coverName", label: "Cover Name", type: "text", source: "agent", req: "*" },
       { id: "subCoverName", label: "Sub-Cover Name", type: "text", source: "agent" },
-      { id: "estimateLossAmount", label: "Estimate Loss Amount", type: "number", source: "agent", req: "*" },
-      { id: "totalEstimateLossAmt", label: "Total Estimate Loss Amt.", type: "number", source: "agent", req: "*" },
+      { id: "estimateLossAmount", label: "Initial Reserve Amount", type: "number", source: "agent", req: "*" },
+      { id: "subLimitAmount", label: "Sub-Limit (as per plan)", type: "number", source: "agent" },
+      { id: "totalEstimateLossAmt", label: "Total Initial Reserve", type: "number", source: "agent", req: "*" },
       { id: "currency", label: "Currency", type: "select", source: "agent", req: "*", options: ["USD", "INR"] },
       { id: "exchangeRate", label: "Exchange Rate", type: "number", source: "agent" },
       { id: "remarks", label: "Remarks", type: "textarea", source: "agent" },
@@ -136,7 +137,7 @@ export const ASSESSMENT_CORE = [
   {
     title: "Approval & Payee",
     fields: [
-      { id: "pedLifeThreat", label: "Is this a PED and life-threatening Claim?", type: "select", source: "insurer", options: ["Yes", "No"] },
+      { id: "pedLifeThreat", label: "Is this a PED and life-threatening Claim?", type: "select", source: "insurer", options: ["Yes", "No"], reveal: { equals: "Yes", field: { id: "pedRemarks", label: "PED / life-threatening — remarks", type: "textarea", source: "insurer" } } },
       { id: "payeeFunction", label: "Payee Function", type: "text", source: "insurer", req: "*" },
       { id: "payeeCode", label: "Payee Code", type: "text", source: "insurer", req: "*" },
       { id: "payeeName", label: "Payee Name", type: "text", source: "insurer", req: "*" },
@@ -163,6 +164,7 @@ export const ASSESSMENT_CORE = [
       { id: "tripTo", label: "Trip To", type: "date", source: "insurer" },
       { id: "invoiceNumberA", label: "Invoice Number", type: "text", source: "insurer", req: "*" },
       { id: "invoiceDateA", label: "Invoice Date", type: "date", source: "insurer", req: "*" },
+      { id: "gopIssueDate", label: "GOP Issue Date", type: "date", source: "insurer" },
     ],
   },
 ];

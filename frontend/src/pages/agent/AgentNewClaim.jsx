@@ -1,19 +1,24 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import client from "../../api/client";
 import { Card, PrimaryBtn, EmptyNote } from "../../components/ui";
-
-const CLAIM_TYPES = [{ label: "Travel Claim", value: "TRAVEL" }, { label: "Medical Claim", value: "MEDICAL" }];
+import CoverageItemsEditor from "../../components/CoverageItemsEditor";
+import { FALLBACK_COVER_NAMES, MEDICAL_SUB_COVERS, CLAIM_CATEGORIES, CATEGORY_LABELS } from "../../lib/catalog";
 
 export default function AgentNewClaim() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [policy, setPolicy] = useState(null);
-  const [claimType, setClaimType] = useState("TRAVEL");
-  const [selectedCoverages, setSelectedCoverages] = useState([]);
-  const [billAmount, setBillAmount] = useState("");
+  const [coverNameCatalog, setCoverNameCatalog] = useState(FALLBACK_COVER_NAMES);
+  const [claimCategory, setClaimCategory] = useState("TRAVEL");
+  const [selectedMemberIds, setSelectedMemberIds] = useState([]);
+  const [coverageItems, setCoverageItems] = useState([]);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+
+  useEffect(() => {
+    client.get("/plans/cover-names").then(({ data }) => setCoverNameCatalog(data)).catch(() => {});
+  }, []);
 
   const search = async () => {
     if (!query.trim()) return;
@@ -21,18 +26,29 @@ export default function AgentNewClaim() {
     setResults(data);
   };
 
-  const toggleCoverage = (name) =>
-    setSelectedCoverages((p) => (p.includes(name) ? p.filter((x) => x !== name) : [...p, name]));
+  const selectPolicy = (p) => {
+    setPolicy(p);
+    setSelectedMemberIds([]);
+    onPickCategory("TRAVEL");
+  };
+
+  const toggleMember = (id) =>
+    setSelectedMemberIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const onPickCategory = (cat) => {
+    setClaimCategory(cat);
+    setCoverageItems([{ category: cat, coverageName: (coverNameCatalog[cat] || [])[0] || "", subCoverName: null, initialReserve: "" }]);
+  };
 
   const createOnBehalf = async () => {
-    if (!policy || !selectedCoverages.length) return;
+    if (!policy || !coverageItems.length) return;
     setError("");
     try {
       const { data: claim } = await client.post("/claims", {
         policyId: policy.id,
-        claimType,
-        coverages: selectedCoverages,
-        intimationData: { expenseReserve: billAmount },
+        claimCategory,
+        memberIds: selectedMemberIds,
+        coverageItems,
       });
       navigate(`/agent/claims/${claim.id}`);
     } catch (err) {
@@ -60,7 +76,7 @@ export default function AgentNewClaim() {
             <tbody>
               {results.map((p) => (
                 <tr key={p.id}>
-                  <td><button className="btn btn-secondary" onClick={() => setPolicy(p)}>Select</button></td>
+                  <td><button className="btn btn-secondary" onClick={() => selectPolicy(p)}>Select</button></td>
                   <td>{p.policyNumber}</td>
                   <td>{p.owner?.name}</td>
                   <td>{p.planName}</td>
@@ -73,32 +89,53 @@ export default function AgentNewClaim() {
 
       {policy && (
         <Card title={`Policy ${policy.policyNumber} — ${policy.owner?.name}`}>
-          <div style={{ marginBottom: 16 }}>
-            <label className="field-label"><span>Claim Type</span></label>
-            <select value={claimType} onChange={(e) => setClaimType(e.target.value)} style={{ maxWidth: 240, marginTop: 6 }}>
-              {CLAIM_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
+          <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
+            {CLAIM_CATEGORIES.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                className="btn"
+                onClick={() => onPickCategory(cat)}
+                style={{
+                  background: claimCategory === cat ? "var(--brand-blue)" : "#fff",
+                  color: claimCategory === cat ? "#fff" : "var(--ink)",
+                  border: claimCategory === cat ? "none" : "1px solid var(--line-strong)",
+                }}
+              >
+                {CATEGORY_LABELS[cat]}
+              </button>
+            ))}
           </div>
 
-          <table className="data-table">
-            <thead><tr><th></th><th>Coverage Name</th><th>Sum Insured</th></tr></thead>
-            <tbody>
-              {policy.coverages.map((c) => (
-                <tr key={c.id}>
-                  <td><input type="checkbox" checked={selectedCoverages.includes(c.name)} onChange={() => toggleCoverage(c.name)} /></td>
-                  <td>{c.name}</td>
-                  <td>₹{c.sumInsured.toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div style={{ display: "flex", gap: 16, alignItems: "flex-end", marginTop: 16, flexWrap: "wrap" }}>
-            <div className="field" style={{ maxWidth: 220 }}>
-              <label className="field-label"><span>Estimated Bill Amount</span></label>
-              <input type="number" value={billAmount} onChange={(e) => setBillAmount(e.target.value)} />
+          {policy.members?.length > 0 && (
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 8 }}>Insured Member(s) — only members on this policy can be selected</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {policy.members.map((m) => (
+                  <label key={m.id} className={`checkbox-tile ${selectedMemberIds.includes(m.id) ? "selected" : ""}`}>
+                    <input type="checkbox" checked={selectedMemberIds.includes(m.id)} onChange={() => toggleMember(m.id)} />
+                    {m.name} {m.relationship ? `(${m.relationship})` : ""}
+                  </label>
+                ))}
+              </div>
             </div>
-            <PrimaryBtn onClick={createOnBehalf} disabled={!selectedCoverages.length}>Create & Open Intimation →</PrimaryBtn>
+          )}
+
+          {coverageItems.length > 0 && (
+            <CoverageItemsEditor
+              items={coverageItems}
+              onChange={setCoverageItems}
+              mode="select"
+              coverNameCatalog={coverNameCatalog}
+              medicalSubCovers={MEDICAL_SUB_COVERS}
+              defaultCategory={claimCategory}
+            />
+          )}
+
+          <div style={{ marginTop: 16 }}>
+            <PrimaryBtn onClick={createOnBehalf} disabled={!coverageItems.some((i) => i.coverageName)}>
+              Create & Open Intimation →
+            </PrimaryBtn>
           </div>
           {error && <p style={{ color: "var(--danger)", fontSize: 12.5, marginTop: 10 }}>{error}</p>}
         </Card>

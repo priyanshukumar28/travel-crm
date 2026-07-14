@@ -11,10 +11,11 @@ function randomDigits(len) {
   return out;
 }
 
-function generateClaimNumber(claimType) {
+function generateClaimNumber(claimCategory) {
   const year = new Date().getFullYear();
   const seq = randomDigits(6);
-  const typeTag = claimType === "MEDICAL" ? "MED" : "TRV";
+  const TAGS = { MEDICAL: "MED", NON_MEDICAL: "NMD", TRAVEL: "TRV", PERSONAL_ACCIDENT: "PA" };
+  const typeTag = TAGS[claimCategory] || "TRV";
   return `CLM-${year}-${seq}-${typeTag}`;
 }
 
