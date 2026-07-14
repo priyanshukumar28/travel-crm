@@ -4,7 +4,7 @@ const { asyncHandler } = require("../middleware/errorHandler");
 // GET /api/policies/mine — Customer: their own policies
 const getMyPolicies = asyncHandler(async (req, res) => {
   const policies = await prisma.policy.findMany({
-    where: { ownerId: req.user.id },
+    where: { ownerId: req.user.id, completionStatus: "ACTIVE" },
     include: { coverages: true, members: true, planTemplate: { include: { coverages: true } } },
     orderBy: { createdAt: "desc" },
   });
@@ -30,7 +30,7 @@ const searchPolicies = asyncHandler(async (req, res) => {
   res.json(
     policies.map((p) => ({
       ...p,
-      owner: { id: p.owner.id, name: p.owner.name, email: p.owner.email },
+      owner: p.owner ? { id: p.owner.id, name: p.owner.name, email: p.owner.email } : null,
     }))
   );
 });

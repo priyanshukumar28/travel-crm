@@ -9,6 +9,8 @@ const {
   listNotifications,
   salesDataFieldSpec, syncInsurerPolicies,
 } = require("../controllers/admin.controller");
+const { listApiKeys, createApiKey, updateApiKey } = require("../controllers/apiKey.controller");
+const { listFeedEvents } = require("../controllers/insurerFeed.controller");
 
 const router = express.Router();
 
@@ -40,5 +42,13 @@ router.get("/notifications", listNotifications);
 // Point 13 — insurer sales-data feed
 router.get("/insurer-sync/fields", salesDataFieldSpec);
 router.post("/insurer-sync", syncInsurerPolicies);
+
+// API keys the insurer's system authenticates the live feed with
+router.get("/api-keys", listApiKeys);
+router.post("/api-keys", createApiKey);
+router.patch("/api-keys/:id", updateApiKey);
+
+// Permanent history of every call the live feed has ever received
+router.get("/insurer-feed/events", listFeedEvents);
 
 module.exports = router;

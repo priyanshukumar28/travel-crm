@@ -155,15 +155,16 @@ export default function AdminPolicies() {
           <EmptyNote text="No policies configured yet." />
         ) : (
           <table className="data-table">
-            <thead><tr><th>Policy Number</th><th>Holder</th><th>Plan</th><th>Coverages</th><th>Members</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Policy Number</th><th>Holder</th><th>Plan</th><th>Coverages</th><th>Members</th><th>Feed Status</th><th>Status</th><th></th></tr></thead>
             <tbody>
               {policies.map((p) => (
                 <tr key={p.id}>
                   <td style={{ fontFamily: "monospace" }}>{p.policyNumber}</td>
-                  <td>{p.owner?.name}<div style={{ fontSize: 11, color: "var(--muted)" }}>{p.owner?.email}</div></td>
+                  <td>{p.owner?.name || <span style={{ color: "var(--muted)" }}>Pending owner</span>}<div style={{ fontSize: 11, color: "var(--muted)" }}>{p.owner?.email}</div></td>
                   <td>{p.planName}</td>
                   <td>{p.coverages.length}</td>
                   <td>{p.members?.length ?? 0}</td>
+                  <td>{p.completionStatus === "ACTIVE" ? <Badge color="#1D8A5F" bg="#DEF3E9">Active</Badge> : <Badge color="#B5790C" bg="#FBF0D6">Draft (feed incomplete)</Badge>}</td>
                   <td>{p.isActive ? <Badge color="#1D8A5F" bg="#DEF3E9">Active</Badge> : <Badge color="#667085" bg="#EEF0F4">Inactive</Badge>}</td>
                   <td><SecondaryBtn onClick={() => toggleActive(p)}>{p.isActive ? "Deactivate" : "Activate"}</SecondaryBtn></td>
                 </tr>

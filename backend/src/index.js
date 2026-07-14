@@ -11,6 +11,7 @@ const { claimScopedRouter: claimDocumentRoutes, documentRouter } = require("./ro
 const adminRoutes = require("./routes/admin.routes");
 const planTemplateRoutes = require("./routes/planTemplate.routes");
 const documentRequirementRoutes = require("./routes/documentRequirement.routes");
+const insurerFeedRoutes = require("./routes/insurerFeed.routes");
 
 const app = express();
 
@@ -45,6 +46,7 @@ app.use("/api/documents", documentRouter);
 app.use("/api/admin", adminRoutes);
 app.use("/api/plans", planTemplateRoutes);
 app.use("/api/document-requirements", documentRequirementRoutes);
+app.use("/api/insurer-feed", insurerFeedRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

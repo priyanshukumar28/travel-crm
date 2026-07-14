@@ -111,6 +111,11 @@ async function main() {
   await seedDocumentRequirements();
   await seedPlanTemplates();
 
+  const existingKey = await prisma.apiKey.findFirst({ where: { label: "Demo Insurer Feed Key" } });
+  const apiKey = existingKey || (await prisma.apiKey.create({
+    data: { label: "Demo Insurer Feed Key", key: "aa_live_demo_0000000000000000000000000000" },
+  }));
+
   const goldPlan = await prisma.planTemplate.findUnique({ where: { name: "Gold 500" } });
 
   const existingPolicy = await prisma.policy.findUnique({
@@ -170,6 +175,7 @@ async function main() {
   console.log(" Agent:   ", agent.email);
   console.log(" Insurer: ", insurer.email);
   console.log(" Policy:  ", policy.policyNumber, "with", policy.members?.length ?? "?", "insured members");
+  console.log(" Insurer feed API key:", apiKey.key);
 }
 
 main()

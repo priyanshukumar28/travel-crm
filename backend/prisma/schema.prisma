@@ -68,6 +68,21 @@ enum NotificationStatus {
   FAILED
 }
 
+// Point 13 continued — a policy that has only received partial data from
+// the insurer's feed so far (e.g. Policy Number + dates, but no Sum Insured
+// yet) stays DRAFT and is hidden from Customer/Agent portals until every
+// core field required to actually service a claim has arrived and it
+// flips to ACTIVE.
+enum PolicyCompletionStatus {
+  DRAFT
+  ACTIVE
+}
+
+enum FeedEventStatus {
+  APPLIED
+  VALIDATION_ERROR
+}
+
 model User {
   id           String    @id @default(cuid())
   name         String
@@ -90,6 +105,35 @@ model User {
 // Coverage rows are a materialized copy of the template's PlanCoverage rows
 // at the time the policy was issued — so later edits to a plan template
 // never silently change an already-issued policy's limits.
+// ---------- Point 13: insurer feed authentication + audit trail ----------
+// A real insurer integration authenticates with an API key (not a user
+// login) and can call the feed endpoint many times for the same policy as
+// more fields become available. ApiKey is what the insurer's system
+// presents; InsurerFeedEvent is a permanent, append-only record of every
+// call received — whether it was applied or rejected on validation — so
+// the Admin portal always shows the true history of what the insurer sent
+// and when, not just the outcome of the most recent call.
+model ApiKey {
+  id        String    @id @default(cuid())
+  label     String
+  key       String    @unique
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  events    InsurerFeedEvent[]
+}
+
+model InsurerFeedEvent {
+  id           String           @id @default(cuid())
+  apiKeyId     String?
+  apiKey       ApiKey?          @relation(fields: [apiKeyId], references: [id])
+  policyNumber String?
+  payload      Json
+  status       FeedEventStatus
+  errors       Json?
+  appliedFields String[]        // which fields from the payload were actually written, for audit clarity
+  createdAt    DateTime         @default(now())
+}
+
 model PlanTemplate {
   id          String   @id @default(cuid())
   name        String   @unique // e.g. "Bronze 25", "Platinum 1000"
@@ -140,9 +184,10 @@ model Policy {
   countryOfResidence String?
   deductible     String?
   nomineeName    String?
-  ownerId        String
-  owner          User          @relation("PolicyOwner", fields: [ownerId], references: [id])
+  ownerId        String?
+  owner          User?         @relation("PolicyOwner", fields: [ownerId], references: [id])
   isActive       Boolean       @default(true)
+  completionStatus PolicyCompletionStatus @default(ACTIVE)
 
   planTemplateId String?
   planTemplate   PlanTemplate? @relation(fields: [planTemplateId], references: [id])
