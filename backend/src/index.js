@@ -12,7 +12,24 @@ const adminRoutes = require("./routes/admin.routes");
 
 const app = express();
 
-app.use(cors({ origin: process.env.CORS_ORIGIN || "*" }));
+// CORS_ORIGIN can be a single URL or a comma-separated list (e.g. your
+// Vercel prod URL + http://localhost:5173 for local dev against the
+// deployed backend). "*" still works if you want to allow anything.
+const allowedOrigins = (process.env.CORS_ORIGIN || "*")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (allowedOrigins.includes("*") || !origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+  })
+);
 app.use(express.json());
 app.use(morgan("dev"));
 
