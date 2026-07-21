@@ -9,9 +9,12 @@ function money(n) {
   return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
-// Points 4/5/7/9: every row now carries its own Currency, and shows the
-// computed USD + INR conversion (cascading Local -> USD -> INR, pinned to
-// the claim's Date of Loss) alongside Sub-Limit / Payable / Total.
+// Points 4/5/7/9: currency + computed USD/INR cascade, pinned to Date of Loss.
+// Initial Reserve is editable in BOTH modes now — Agent/Insurer can revise
+// it after intimation, not just at claim creation.
+// GOP Issue Date and Remarks are NOT editable here — GOP Issue Date will be
+// autofetched once the insurer feed sends it; Remarks lives on the claim's
+// own Remarks tab instead of duplicated per coverage row.
 export default function CoverageItemsEditor({
   items,
   onChange,
@@ -45,13 +48,11 @@ export default function CoverageItemsEditor({
             <th>Cover Name</th>
             <th>Sub-Cover</th>
             <th>Currency</th>
-            <th>Amount (Local)</th>
+            <th>Initial Reserve (Local)</th>
             <th>USD</th>
             <th>INR</th>
             {mode === "review" && <th>Sub-Limit</th>}
             {mode === "review" && <th>Payable</th>}
-            {mode === "review" && <th>GOP Issue Date</th>}
-            {mode === "review" && <th>Remarks</th>}
             {mode === "select" && <th></th>}
           </tr>
         </thead>
@@ -96,9 +97,8 @@ export default function CoverageItemsEditor({
                   </select>
                 </td>
                 <td>
-                  {mode === "select" ? (
-                    <input type="number" value={it.initialReserve ?? ""} onChange={(e) => updateItem(i, { initialReserve: e.target.value })} style={{ width: 100 }} />
-                  ) : money(it.initialReserve)}
+                  {/* Editable in both modes — point: allow editing initial reserve after intimation too */}
+                  <input type="number" value={it.initialReserve ?? ""} onChange={(e) => updateItem(i, { initialReserve: e.target.value })} style={{ width: 110 }} />
                 </td>
                 <td>{it.amountUSD !== undefined && it.amountUSD !== null ? `$${money(it.amountUSD)}` : "—"}</td>
                 <td>{it.amountINR !== undefined && it.amountINR !== null ? `₹${money(it.amountINR)}` : "—"}</td>
@@ -107,12 +107,6 @@ export default function CoverageItemsEditor({
                 )}
                 {mode === "review" && (
                   <td><input type="number" value={it.payableAmount ?? ""} onChange={(e) => updateItem(i, { payableAmount: e.target.value })} style={{ width: 100 }} /></td>
-                )}
-                {mode === "review" && (
-                  <td><input type="date" value={it.gopIssueDate || ""} onChange={(e) => updateItem(i, { gopIssueDate: e.target.value })} style={{ width: 140 }} /></td>
-                )}
-                {mode === "review" && (
-                  <td><input type="text" value={it.remarks || ""} onChange={(e) => updateItem(i, { remarks: e.target.value })} style={{ width: 150 }} placeholder="Optional" /></td>
                 )}
                 {mode === "select" && (
                   <td><button type="button" className="btn btn-secondary" onClick={() => removeItem(i)}>Remove</button></td>
@@ -126,14 +120,14 @@ export default function CoverageItemsEditor({
             <tr>
               <td colSpan={6} style={{ textAlign: "right", fontWeight: 700 }}>Total</td>
               <td style={{ fontWeight: 700 }}>${money(totalUSD)} / ₹{money(totalINR)}</td>
-              <td colSpan={4}></td>
+              <td colSpan={2}></td>
             </tr>
           </tfoot>
         )}
       </table>
       {items[0]?.exchangeRateUsed && (
         <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
-          Exchange rate pinned to Date of Loss ({items[0].exchangeRateUsed.asOfDate}) — 1 USD = ₹{items[0].exchangeRateUsed.usdToINR}
+          Exchange rate pinned to Date of Loss ({items[0].exchangeRateUsed.asOfDate}) — 1 USD = ₹{items[0].exchangeRateUsed.usdToINR}. Changing the Initial Reserve above recalculates USD/INR on save.
         </p>
       )}
       {mode === "select" && (

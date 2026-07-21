@@ -16,7 +16,7 @@
 
 const STATIC_USD_RATES = {
   // <currency>: units of that currency per 1 USD.
-  USD: 1, EUR: 0.92, GBP: 0.79, INR: 83.5, AED: 3.67, SGD: 1.35, AUD: 1.52, CAD: 1.36,
+  USD: 1, EUR: 0.92, GBP: 0.79, INR: 96.45, AED: 3.67, SGD: 1.35, AUD: 1.52, CAD: 1.36,
   JPY: 151.5, CHF: 0.88, THB: 36.5, MYR: 4.7, ZAR: 18.6, NZD: 1.64,
   AFN: 70, ALL: 93, DZD: 134, AOA: 850, ARS: 900, AMD: 390, AZN: 1.7, BSD: 1, BHD: 0.376,
   BDT: 110, BBD: 2, BYN: 3.3, BZD: 2, BTN: 83.5, BOB: 6.9, BAM: 1.8, BWP: 13.5, BRL: 5.4,
@@ -37,7 +37,7 @@ const STATIC_USD_RATES = {
   XOF: 606, XAF: 606,
 };
 
-const USD_TO_INR = 83.5;
+const USD_TO_INR = 96.45;
 
 function getRatesForDate(currencyCode, dateOfLoss) { // eslint-disable-line no-unused-vars
   const perUSD = STATIC_USD_RATES[currencyCode] ?? 1;

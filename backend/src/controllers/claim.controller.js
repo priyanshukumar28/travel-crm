@@ -151,7 +151,21 @@ const createClaim = asyncHandler(async (req, res) => {
   const validMemberIds = new Set(policy.members.map((m) => m.id));
   const parentClaimNumber = generateParentClaimNumber();
   const prefill = await prefillFromLastClaim(policyId);
-  const mergedIntimation = { ...prefill, ...(intimationData || {}) };
+
+  // Autofill Policy Details (previously defined in the schema as
+  // source:"autofill" but nothing ever actually populated them) + system
+  // Reported Date/Time set to the real moment this claim was initiated.
+  const now = new Date();
+  const autofillFields = {
+    policyIssuanceDate: policy.issuanceDate.toISOString().slice(0, 10),
+    inceptionDate: policy.startDate.toISOString().slice(0, 10),
+    expiryDate: policy.endDate.toISOString().slice(0, 10),
+    holderName: policy.holderName,
+    reportedDate: now.toISOString().slice(0, 10),
+    reportedTime: now.toTimeString().slice(0, 5),
+  };
+
+  const mergedIntimation = { ...prefill, ...(intimationData || {}), ...autofillFields };
 
   const createdClaims = [];
   for (const group of claimGroups) {

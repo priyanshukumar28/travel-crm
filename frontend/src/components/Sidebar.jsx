@@ -10,6 +10,7 @@ const NAV = {
     { to: "/agent", label: "Claims Queue", Icon: Luggage },
     { to: "/agent/queues", label: "TAT / Escalation Queues", Icon: ListChecks },
     { to: "/agent/new", label: "New Claim (Intimate)", Icon: Plus },
+    { to: "/agent/reports", label: "Download MIS", Icon: BarChart3 },
   ],
   INSURER: [
     { to: "/insurer", label: "Assessment Queue", Icon: ShieldCheck },

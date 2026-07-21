@@ -95,7 +95,20 @@ function sumItems(items, key) {
 // than guessed, and are called out below so it's obvious what's genuinely
 // not tracked yet vs. mapped from real data.
 const misExport = asyncHandler(async (req, res) => {
+  // Date range filter (query params ?from=YYYY-MM-DD&to=YYYY-MM-DD) — Agent
+  // portal exposes this as a real date picker; both are optional, omit
+  // either/both to export everything.
+  const { from, to } = req.query;
+  const createdAtFilter = {};
+  if (from) createdAtFilter.gte = new Date(from);
+  if (to) {
+    const toDate = new Date(to);
+    toDate.setHours(23, 59, 59, 999); // include the whole "to" day
+    createdAtFilter.lte = toDate;
+  }
+
   const claims = await prisma.claim.findMany({
+    ...(from || to ? { where: { createdAt: createdAtFilter } } : {}),
     include: {
       policy: { include: { owner: true, coverages: true } },
       activityLogs: { orderBy: { createdAt: "asc" } },

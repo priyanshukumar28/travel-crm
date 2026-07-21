@@ -10,6 +10,7 @@ import CustomerClaimView from "./pages/customer/CustomerClaimView";
 import AgentLayout from "./pages/agent/AgentLayout";
 import AgentClaimsList from "./pages/agent/AgentClaimsList";
 import AgentQueues from "./pages/agent/AgentQueues";
+import AgentReports from "./pages/agent/AgentReports";
 import AgentNewClaim from "./pages/agent/AgentNewClaim";
 import AgentClaimWorkspace from "./pages/agent/AgentClaimWorkspace";
 
@@ -66,6 +67,7 @@ export default function App() {
       <Route path="/agent" element={<ProtectedRoute roles={["AGENT", "SUPER_ADMIN"]}><AgentLayout /></ProtectedRoute>}>
         <Route index element={<AgentClaimsList />} />
         <Route path="queues" element={<AgentQueues />} />
+        <Route path="reports" element={<AgentReports />} />
         <Route path="new" element={<AgentNewClaim />} />
         <Route path="claims/:id" element={<AgentClaimWorkspace />} />
       </Route>
