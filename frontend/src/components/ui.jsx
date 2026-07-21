@@ -181,13 +181,24 @@ export function StageStepper({ stage }) {
   );
 }
 
+// Resolves a claim's memberIds against its policy's members list — shared
+// by ClaimRow and every claim detail header so member names are never
+// computed differently in two places.
+export function memberNamesForClaim(claim) {
+  if (!claim?.memberIds?.length || !claim?.policy?.members) return [];
+  const byId = Object.fromEntries(claim.policy.members.map((m) => [m.id, m]));
+  return claim.memberIds.map((id) => byId[id]).filter(Boolean);
+}
+
 export function ClaimRow({ claim, onClick }) {
+  const members = memberNamesForClaim(claim);
   return (
     <button className="claim-row" onClick={onClick}>
       <div>
         <div className="cid">{claim.claimNumber}</div>
         <div className="meta">
-          {claim.claimCategory} · {claim.coverages?.join(", ")} · Policy {claim.policy?.policyNumber}
+          {claim.claimType || claim.claimCategory} · {claim.coverages?.join(", ")} · Policy {claim.policy?.policyNumber}
+          {members.length > 0 && <> · For: <strong>{members.map((m) => m.name).join(", ")}</strong></>}
         </div>
       </div>
       <StatusBadge status={claim.status} />

@@ -8,7 +8,7 @@ import { INTIMATION_SCHEMA, REGISTRATION_SCHEMA } from "../../lib/fieldSchemas";
 import { FALLBACK_COVER_NAMES, MEDICAL_SUB_COVERS, CATEGORY_LABELS } from "../../lib/catalog";
 import {
   Card, InfoTile, PrimaryBtn, SecondaryBtn, DangerBtn, EmptyNote,
-  StageStepper, SchemaGroup, StatusBadge, FieldRow, Badge,
+  StageStepper, SchemaGroup, StatusBadge, FieldRow, Badge, memberNamesForClaim,
 } from "../../components/ui";
 import { SOURCE_META } from "../../lib/permissions";
 
@@ -109,6 +109,15 @@ export default function AgentClaimWorkspace() {
             <StatusBadge status={claim.status} />
           </div>
         </div>
+
+        {memberNamesForClaim(claim).length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "10px 0 16px", padding: "10px 14px", background: "var(--brand-orange-soft)", borderRadius: "var(--radius-sm)" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-orange-dark)" }}>Claim for:</span>
+            {memberNamesForClaim(claim).map((m) => (
+              <Badge key={m.id} color="#B5790C" bg="#FBF0D6">{m.name}{m.relationship ? ` (${m.relationship})` : ""}</Badge>
+            ))}
+          </div>
+        )}
 
         <StageStepper stage={claim.stage} />
 

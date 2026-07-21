@@ -7,7 +7,7 @@ import { INTIMATION_SCHEMA } from "../../lib/fieldSchemas";
 import { CATEGORY_LABELS } from "../../lib/catalog";
 import {
   Card, InfoTile, PrimaryBtn, SecondaryBtn, EmptyNote,
-  StageStepper, SchemaGroup, StatusBadge,
+  StageStepper, SchemaGroup, StatusBadge, memberNamesForClaim, Badge,
 } from "../../components/ui";
 
 export default function CustomerClaimView() {
@@ -64,6 +64,15 @@ export default function CustomerClaimView() {
           </div>
           <StatusBadge status={claim.status} />
         </div>
+
+        {memberNamesForClaim(claim).length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "10px 0 16px", padding: "10px 14px", background: "var(--brand-orange-soft)", borderRadius: "var(--radius-sm)" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-orange-dark)" }}>Claim for:</span>
+            {memberNamesForClaim(claim).map((m) => (
+              <Badge key={m.id} color="#B5790C" bg="#FBF0D6">{m.name}{m.relationship ? ` (${m.relationship})` : ""}</Badge>
+            ))}
+          </div>
+        )}
 
         <StageStepper stage={claim.stage} />
 

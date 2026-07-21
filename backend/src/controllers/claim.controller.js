@@ -54,14 +54,14 @@ function scopeWhereForRole(user) {
 
 const listClaims = asyncHandler(async (req, res) => {
   const where = scopeWhereForRole(req.user);
-  const claims = await prisma.claim.findMany({ where, include: { policy: true }, orderBy: { createdAt: "desc" } });
+  const claims = await prisma.claim.findMany({ where, include: { policy: { include: { members: true } } }, orderBy: { createdAt: "desc" } });
   res.json(claims.map((c) => ({ ...c, queueBucket: computeQueueBucket(c) })));
 });
 
 // Point 15 — GET /api/claims/queues (Agent) — the same claims, pre-grouped.
 const listQueues = asyncHandler(async (req, res) => {
   const where = scopeWhereForRole(req.user);
-  const claims = await prisma.claim.findMany({ where, include: { policy: true }, orderBy: { createdAt: "desc" } });
+  const claims = await prisma.claim.findMany({ where, include: { policy: { include: { members: true } } }, orderBy: { createdAt: "desc" } });
   const buckets = {
     "Documents Yet to Receive": [], "Under Observation": [], "Reminder 1": [], "Reminder 2": [],
     "Reminder 3": [], "Reminder 4": [], "Deficient Claim": [], "Closed": [],
@@ -124,7 +124,7 @@ const getLinkedClaims = asyncHandler(async (req, res) => {
 
   const siblings = await prisma.claim.findMany({
     where: { parentClaimNumber: claim.parentClaimNumber, id: { not: claim.id } },
-    include: { policy: true },
+    include: { policy: { include: { members: true } } },
     orderBy: { createdAt: "asc" },
   });
   res.json(siblings.map((c) => ({ ...c, queueBucket: computeQueueBucket(c) })));
