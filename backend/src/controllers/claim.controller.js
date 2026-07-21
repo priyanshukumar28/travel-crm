@@ -182,6 +182,7 @@ const createClaim = asyncHandler(async (req, res) => {
         category: item.category || claimCategory,
         coverageName: item.coverageName,
         subCoverName: item.subCoverName || null,
+        memberId: validMemberIds.has(item.memberId) ? item.memberId : null, // who this specific coverage was applied for
         currency,
         initialReserve: Number(item.initialReserve) || 0,
         amountUSD: converted.amountUSD,
@@ -191,6 +192,7 @@ const createClaim = asyncHandler(async (req, res) => {
         payableAmount: null,
         gopIssueDate: null,
         remarks: item.remarks || null,
+        detail: {}, // per-coverage GST/disallowed/etc. — filled in at Registration/Assessment
       };
     });
 

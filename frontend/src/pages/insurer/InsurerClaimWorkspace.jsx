@@ -5,7 +5,7 @@ import DocumentUpload from "../../components/DocumentUpload";
 import CoverageItemsEditor from "../../components/CoverageItemsEditor";
 import {
   INTIMATION_SCHEMA, REGISTRATION_SCHEMA,
-  ASSESSMENT_CORE, ASSESSMENT_MEDICAL, ASSESSMENT_PA, ASSESSMENT_NONMED, ASSESSMENT_COMMON,
+  ASSESSMENT_CORE, ASSESSMENT_COMMON,
 } from "../../lib/fieldSchemas";
 import { FALLBACK_COVER_NAMES, MEDICAL_SUB_COVERS, CATEGORY_LABELS } from "../../lib/catalog";
 import {
@@ -63,7 +63,6 @@ export default function InsurerClaimWorkspace() {
     await load();
   };
 
-  const isMedical = claim.claimCategory === "MEDICAL";
   const editable = claim.stage === "ASSESSMENT";
 
   return (
@@ -93,14 +92,11 @@ export default function InsurerClaimWorkspace() {
             {ASSESSMENT_CORE.map((g, i) => (
               <SchemaGroup key={g.title} group={g} data={claim.assessmentData} onChange={setAssessmentField} role="INSURER" stage="ASSESSMENT" defaultOpen={i === 0} />
             ))}
-            {isMedical ? (
-              <>
-                {ASSESSMENT_MEDICAL.map((g) => <SchemaGroup key={g.title} group={g} data={claim.assessmentData} onChange={setAssessmentField} role="INSURER" stage="ASSESSMENT" />)}
-                {ASSESSMENT_PA.map((g) => <SchemaGroup key={g.title} group={g} data={claim.assessmentData} onChange={setAssessmentField} role="INSURER" stage="ASSESSMENT" />)}
-              </>
-            ) : (
-              ASSESSMENT_NONMED.map((g) => <SchemaGroup key={g.title} group={g} data={claim.assessmentData} onChange={setAssessmentField} role="INSURER" stage="ASSESSMENT" />)
-            )}
+            <div className="empty-note" style={{ marginBottom: 14 }}>
+              Per-coverage assessment details (GST %, Total Bill Amount, Deductible, Disallowed Amount, Type of
+              Incident, % Disability, Max Allowable SI, etc.) are filled in on the <strong>Coverage Items</strong> tab —
+              click "Details" on each coverage row there, since each coverage on this claim needs its own values.
+            </div>
             {ASSESSMENT_COMMON.map((g) => <SchemaGroup key={g.title} group={g} data={claim.assessmentData} onChange={setAssessmentField} role="INSURER" stage="ASSESSMENT" />)}
 
             {validationErrors.length > 0 && (
@@ -131,7 +127,7 @@ export default function InsurerClaimWorkspace() {
 
         {tab === "Coverage Items" && (
           <Card title="Coverage Items" subtitle="Sub-limit, payable, GOP issue date and currency conversion per coverage">
-            <CoverageItemsEditor items={claim.coverageItems || []} onChange={setCoverageItems} mode="review" coverNameCatalog={FALLBACK_COVER_NAMES} medicalSubCovers={MEDICAL_SUB_COVERS} />
+            <CoverageItemsEditor items={claim.coverageItems || []} onChange={setCoverageItems} mode="review" coverNameCatalog={FALLBACK_COVER_NAMES} medicalSubCovers={MEDICAL_SUB_COVERS} policyMembers={claim.policy?.members || []} />
             {validationErrors.length > 0 && (
               <div className="login-error" style={{ marginTop: 12 }}>{validationErrors.map((e, i) => <div key={i}>{e}</div>)}</div>
             )}

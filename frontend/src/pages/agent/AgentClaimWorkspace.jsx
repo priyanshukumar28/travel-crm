@@ -167,7 +167,7 @@ export default function AgentClaimWorkspace() {
 
         {tab === "Coverage Items" && (
           <Card title="Coverage Items" subtitle="Currency, sub-limit and payable per coverage — validated against the policy's sum insured for Medical Expenses / Evacuation / Repatriation (point 18)">
-            <CoverageItemsEditor items={claim.coverageItems || []} onChange={setCoverageItems} mode="review" coverNameCatalog={FALLBACK_COVER_NAMES} medicalSubCovers={MEDICAL_SUB_COVERS} />
+            <CoverageItemsEditor items={claim.coverageItems || []} onChange={setCoverageItems} mode="review" coverNameCatalog={FALLBACK_COVER_NAMES} medicalSubCovers={MEDICAL_SUB_COVERS} policyMembers={claim.policy?.members || []} />
             {validationErrors.length > 0 && (
               <div className="login-error" style={{ marginTop: 12 }}>{validationErrors.map((e, i) => <div key={i}>{e}</div>)}</div>
             )}

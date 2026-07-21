@@ -111,17 +111,14 @@ export const REGISTRATION_SCHEMA = [
     ],
   },
   {
-    title: "Cover & Financials",
+    title: "Loss Financials (claim-level)",
     fields: [
-      // Point 16 — cover/sub-cover are now autofill, carried forward from the
-      // coverage items already captured at Intimation instead of re-typed.
-      { id: "coverName", label: "Cover Name", type: "text", source: "autofill" },
-      { id: "subCoverName", label: "Sub-Cover Name", type: "text", source: "autofill" },
-      { id: "currency", label: "Currency", type: "select", source: "agent", req: "*", options: ["USD", "INR", "EUR", "GBP", "AED", "SGD", "AUD", "CAD", "JPY", "CHF", "THB", "MYR", "ZAR", "NZD"] },
-      { id: "estimateLossAmount", label: "Initial Reserve Amount", type: "number", source: "agent", req: "*" },
-      { id: "subLimitAmount", label: "Sub-Limit (as per plan)", type: "number", source: "agent" },
-      { id: "totalEstimateLossAmt", label: "Total Initial Reserve", type: "number", source: "agent", req: "*" },
-      { id: "remarks", label: "Remarks", type: "textarea", source: "agent" },
+      // Point: per-coverage cover name, sub-cover, currency, reserve,
+      // sub-limit, payable, GST, disallowed amounts etc. now all live on
+      // the Coverage Items table (one row per coverage, each independently
+      // editable — see the Coverage Items tab) instead of duplicated here
+      // as single flat fields that only ever reflected the first coverage.
+      { id: "remarks", label: "Registration Remarks (claim-level)", type: "textarea", source: "agent" },
     ],
   },
   {
@@ -186,52 +183,14 @@ export const ASSESSMENT_CORE = [
   },
 ];
 
-export const ASSESSMENT_MEDICAL = [
-  {
-    title: "Medical Claim Assessment",
-    fields: [
-      { id: "medCoverName", label: "Cover Name", type: "text", source: "autofill" },
-      { id: "medCoverSubSection", label: "Cover Sub Section", type: "select", source: "insurer", options: ["Room Charges", "ICU Charges", "Doctor Charges", "Surgeon Charges", "OT Charges", "Nursing Charges", "Pharmacy Charges", "Pathology Charges", "Radiology Charges", "Pre Hospitalization", "Post Hospitalization", "Ambulance Charges", "Miscellaneous"] },
-      { id: "currency", label: "Currency", type: "select", source: "insurer", req: "*", options: ["USD", "INR", "EUR", "GBP", "AED", "SGD", "AUD", "CAD", "JPY", "CHF", "THB", "MYR", "ZAR", "NZD"] },
-      { id: "billAmountTaxable", label: "Bill Amount (Taxable Value)", type: "number", source: "insurer", req: "*" },
-      { id: "totalBillAmount", label: "Total Bill Amount", type: "number", source: "insurer" },
-      { id: "gstPct", label: "GST %", type: "select", source: "insurer", options: ["0%", "5%", "12%", "18%", "28%"] },
-      { id: "deductible", label: "Deductible", type: "number", source: "insurer" },
-      { id: "disallowedAmounts", label: "Disallowed Amounts", type: "number", source: "insurer" },
-      { id: "disallowedRemarks", label: "Disallowed Remarks", type: "textarea", source: "insurer" },
-      { id: "payableAmountMed", label: "Payable Amount", type: "number", source: "insurer", req: "*" },
-    ],
-  },
-];
-
-export const ASSESSMENT_PA = [
-  {
-    title: "Personal Accident Claim Assessment",
-    fields: [
-      { id: "paCoverName", label: "Cover Name", type: "select", source: "insurer", options: ["Personal Accident", "Accidental Death (Common Carrier)", "Compassionate Visit", "Return of Minor Child(ren)", "Adventure Sports"] },
-      { id: "typeOfIncident", label: "Type of Incident", type: "select", source: "insurer", options: ["Accidental Death", "Permanent Total Disablement"] },
-      { id: "pctDisability", label: "Percentage of Disability", type: "text", source: "insurer" },
-      { id: "billAmountPA", label: "Bill Amount", type: "number", source: "insurer" },
-      { id: "disallowedAmountPA", label: "Disallowed Amount", type: "number", source: "insurer" },
-      { id: "payableAmountPA", label: "Payable Amount", type: "number", source: "insurer", req: "*" },
-    ],
-  },
-];
-
-export const ASSESSMENT_NONMED = [
-  {
-    title: "Travel Claim Assessment",
-    fields: [
-      { id: "nonMedCoverName", label: "Cover Name", type: "select", source: "insurer", req: "*", options: ["Trip Cancellation & Interruption", "Trip Delay", "Missed Flight Connection", "Total Loss of Checked-in Baggage", "Delay of Checked-in Baggage", "Loss of Passport / ID", "Personal Liability", "Financial Assistance", "Emergency Hotel Accommodation", "Fire Cover for Building", "Fire Cover for Contents", "Burglary Cover for Home Contents", "Assistance"] },
-      { id: "currency", label: "Currency", type: "select", source: "insurer", req: "*", options: ["USD", "INR", "EUR", "GBP", "AED", "SGD", "AUD", "CAD", "JPY", "CHF", "THB", "MYR", "ZAR", "NZD"] },
-      { id: "billAmountNM", label: "Bill Amount", type: "number", source: "insurer", req: "*" },
-      { id: "maxAllowableSI", label: "Maximum Allowable SI", type: "number", source: "insurer" },
-      { id: "discountNM", label: "Discount", type: "number", source: "insurer" },
-      { id: "disallowedAmountNM", label: "Disallowed Amount", type: "number", source: "insurer" },
-      { id: "payableAmountNM", label: "Payable Amount", type: "number", source: "insurer", req: "*" },
-    ],
-  },
-];
+// ASSESSMENT_MEDICAL / ASSESSMENT_PA / ASSESSMENT_NONMED removed —
+// every field in them (Cover Sub Section, GST%, Total Bill Amount,
+// Deductible, Disallowed Amount/Remarks, Type of Incident, % Disability,
+// Max Allowable SI, Discount) was per-coverage, not claim-level, so it
+// only ever reflected ONE coverage even when a claim had two or more.
+// That data now lives on each row of the Coverage Items table (see
+// components/CoverageItemsEditor.jsx's expandable per-item detail panel),
+// which already exists once per coverage on the claim.
 
 export const ASSESSMENT_COMMON = [
   {
