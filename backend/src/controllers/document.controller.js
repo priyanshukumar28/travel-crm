@@ -1,6 +1,6 @@
 const prisma = require("../utils/prisma");
 const { asyncHandler } = require("../middleware/errorHandler");
-const { uploadBuffer, destroyByPublicId } = require("../utils/cloudinary");
+const { uploadBuffer } = require("../utils/cloudinary");
 
 function canAccessClaim(user, claim) {
   if (user.role === "SUPER_ADMIN") return true;
@@ -9,9 +9,10 @@ function canAccessClaim(user, claim) {
   return false;
 }
 
-// POST /api/claims/:id/documents  (multipart/form-data, field name "file")
-// The file never touches this server's disk — multer holds it in memory
-// (see utils/upload.js) and it's streamed straight to Cloudinary.
+// POST /api/claims/:id/documents
+// Point 22: uploading the same docType again simply adds another row —
+// there is no dedupe/replace step, and (see below) no delete endpoint at
+// all anymore. Every version ever uploaded stays on file permanently.
 const uploadDocument = asyncHandler(async (req, res) => {
   const claim = await prisma.claim.findUnique({ where: { id: req.params.id }, include: { policy: true } });
   if (!claim) return res.status(404).json({ message: "Claim not found." });
@@ -40,8 +41,8 @@ const uploadDocument = asyncHandler(async (req, res) => {
       claimId: claim.id,
       userId: req.user.id,
       role: req.user.role,
-      action: `Uploaded document: ${req.file.originalname}`,
-      meta: { docType: doc.docType, documentId: doc.id },
+      action: `Uploaded document: ${req.file.originalname} (${doc.docType})`,
+      meta: { type: "document_upload", docType: doc.docType, documentId: doc.id, fileName: doc.fileName },
     },
   });
 
@@ -62,32 +63,29 @@ const listDocuments = asyncHandler(async (req, res) => {
 
   res.json(
     docs.map((d) => ({
-      id: d.id,
-      fileName: d.fileName,
-      docType: d.docType,
-      stage: d.stage,
-      mimeType: d.mimeType,
-      sizeBytes: d.sizeBytes,
-      url: d.url,
-      uploadedByRole: d.uploadedByRole,
-      uploadedByName: d.uploadedBy.name,
-      createdAt: d.createdAt,
+      id: d.id, fileName: d.fileName, docType: d.docType, stage: d.stage, mimeType: d.mimeType,
+      sizeBytes: d.sizeBytes, url: d.url, uploadedByRole: d.uploadedByRole, uploadedByName: d.uploadedBy.name, createdAt: d.createdAt,
     }))
   );
 });
 
-// DELETE /api/documents/:docId — uploader or Agent/Admin only
-const deleteDocument = asyncHandler(async (req, res) => {
-  const doc = await prisma.document.findUnique({ where: { id: req.params.docId }, include: { claim: { include: { policy: true } } } });
-  if (!doc) return res.status(404).json({ message: "Document not found." });
+// Point 19 — a filtered view of just the document-related activity, so it's
+// easy to answer "who uploaded what and when" without scrolling the full log.
+const getDocumentActivity = asyncHandler(async (req, res) => {
+  const claim = await prisma.claim.findUnique({ where: { id: req.params.id }, include: { policy: true } });
+  if (!claim) return res.status(404).json({ message: "Claim not found." });
+  if (!canAccessClaim(req.user, claim)) return res.status(403).json({ message: "Not your claim." });
 
-  const canDelete = doc.uploadedById === req.user.id || ["AGENT", "SUPER_ADMIN"].includes(req.user.role);
-  if (!canDelete) return res.status(403).json({ message: "You cannot delete this document." });
-
-  await destroyByPublicId(doc.publicId).catch(() => {}); // best-effort cloud cleanup
-  await prisma.document.delete({ where: { id: doc.id } });
-
-  res.json({ message: "Document deleted." });
+  const logs = await prisma.activityLog.findMany({
+    where: { claimId: claim.id, action: { contains: "document", mode: "insensitive" } },
+    include: { user: true },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json(logs);
 });
 
-module.exports = { uploadDocument, listDocuments, deleteDocument };
+// Point 22: deleteDocument is intentionally removed. There is no route for
+// it (see routes/document.routes.js) — this comment is here so it's obvious
+// on review that the absence is deliberate, not an oversight.
+
+module.exports = { uploadDocument, listDocuments, getDocumentActivity };

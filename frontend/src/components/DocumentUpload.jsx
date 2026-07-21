@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import client from "../api/client";
-import { Card, SecondaryBtn, EmptyNote, Badge } from "./ui";
+import { Card, EmptyNote, Badge } from "./ui";
 
 function formatSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -15,10 +15,9 @@ const ROLE_BADGE = {
   SUPER_ADMIN: { color: "#1D8A5F", bg: "#DEF3E9" },
 };
 
-// Point 1: the document checklist is computed live from the coverages
-// actually on this claim (backend GET /claims/:id/required-documents),
-// instead of a hardcoded document-type list — every claim can require a
-// different set depending on what was selected at initiation.
+// Point 22: no delete anywhere in this component — documents are permanent
+// once uploaded. Re-uploading the same document type is fully allowed and
+// just adds another row (see the version history note below the table).
 export default function DocumentUpload({ claimId, canUpload = true }) {
   const [docs, setDocs] = useState([]);
   const [required, setRequired] = useState({ coverageNames: [], documents: [] });
@@ -39,9 +38,7 @@ export default function DocumentUpload({ claimId, canUpload = true }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const docTypeOptions = required.documents.length > 0
-    ? required.documents.map((d) => d.docType)
-    : ["Claim Form", "Others"]; // fallback if no coverage/requirement data yet
+  const docTypeOptions = required.documents.length > 0 ? required.documents.map((d) => d.docType) : ["Claim Form", "Others"];
 
   const onUpload = async (e) => {
     e.preventDefault();
@@ -63,12 +60,14 @@ export default function DocumentUpload({ claimId, canUpload = true }) {
     }
   };
 
-  const onDelete = async (doc) => {
-    await client.delete(`/documents/${doc.id}`);
-    await load();
-  };
-
   const missingCount = required.documents.filter((d) => !d.uploaded).length;
+
+  // Point 19: group multiple uploads of the same docType so re-uploads read
+  // as a version history, not duplicate confusion.
+  const grouped = docs.reduce((acc, d) => {
+    (acc[d.docType] = acc[d.docType] || []).push(d);
+    return acc;
+  }, {});
 
   return (
     <Card
@@ -76,7 +75,7 @@ export default function DocumentUpload({ claimId, canUpload = true }) {
       subtitle={
         required.coverageNames.length > 0
           ? `Required documents are computed automatically from this claim's coverages: ${required.coverageNames.join(", ")}`
-          : "Real files, stored on the server — not just form fields"
+          : "Real files, stored on the server — permanent once uploaded"
       }
     >
       {required.documents.length > 0 && (
@@ -111,35 +110,38 @@ export default function DocumentUpload({ claimId, canUpload = true }) {
           </button>
         </form>
       )}
+      <p style={{ fontSize: 11, color: "var(--muted)", marginBottom: 14 }}>
+        Uploaded documents cannot be deleted. Uploading the same document type again adds a new version below it.
+      </p>
       {error && <p style={{ color: "var(--danger)", fontSize: 12.5, marginBottom: 12 }}>{error}</p>}
 
       {docs.length === 0 ? (
         <EmptyNote text="No documents uploaded yet." />
       ) : (
-        <table className="data-table">
-          <thead>
-            <tr><th>File</th><th>Type</th><th>Uploaded By</th><th>Size</th><th></th></tr>
-          </thead>
-          <tbody>
-            {docs.map((d) => {
-              const rb = ROLE_BADGE[d.uploadedByRole] || {};
-              return (
-                <tr key={d.id}>
-                  <td>{d.fileName}</td>
-                  <td>{d.docType}</td>
-                  <td>
-                    {d.uploadedByName} <Badge color={rb.color} bg={rb.bg}>{d.uploadedByRole}</Badge>
-                  </td>
-                  <td>{formatSize(d.sizeBytes)}</td>
-                  <td style={{ display: "flex", gap: 8 }}>
-                    <a className="btn btn-secondary" href={d.url} target="_blank" rel="noopener noreferrer">Open</a>
-                    <SecondaryBtn onClick={() => onDelete(d).catch((e) => setError(e.response?.data?.message || "Could not delete."))}>Delete</SecondaryBtn>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        Object.entries(grouped).map(([type, versions]) => (
+          <div key={type} style={{ marginBottom: 14 }}>
+            <div style={{ fontWeight: 700, fontSize: 12.5, marginBottom: 6 }}>
+              {type} {versions.length > 1 && <Badge color="#B5790C" bg="#FBF0D6">{versions.length} versions</Badge>}
+            </div>
+            <table className="data-table">
+              <thead><tr><th>File</th><th>Uploaded By</th><th>Size</th><th>When</th><th></th></tr></thead>
+              <tbody>
+                {versions.map((d) => {
+                  const rb = ROLE_BADGE[d.uploadedByRole] || {};
+                  return (
+                    <tr key={d.id}>
+                      <td>{d.fileName}</td>
+                      <td>{d.uploadedByName} <Badge color={rb.color} bg={rb.bg}>{d.uploadedByRole}</Badge></td>
+                      <td>{formatSize(d.sizeBytes)}</td>
+                      <td>{new Date(d.createdAt).toLocaleString()}</td>
+                      <td><a className="btn btn-secondary" href={d.url} target="_blank" rel="noopener noreferrer">Open</a></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ))
       )}
     </Card>
   );

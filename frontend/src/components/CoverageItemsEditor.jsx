@@ -1,25 +1,23 @@
 import React from "react";
 import { Badge } from "./ui";
+import { CURRENCIES } from "../lib/catalog";
 
-// Point 2/3/4/7/8/9/10: the multi-coverage table used both at claim
-// initiation ("select" mode — pick category + cover + sub-cover + initial
-// reserve, add/remove rows freely) and at Registration/Assessment
-// ("review" mode — cover/category locked, edit sub-limit / payable /
-// GOP issue date / remarks per row, with a running total footer).
-
-const CATEGORY_LABELS = { MEDICAL: "Medical", NON_MEDICAL: "Non-Medical", TRAVEL: "Travel", PERSONAL_ACCIDENT: "Personal Accident" };
+const CATEGORY_LABELS = { MEDICAL: "Medical", TRAVEL: "Travel", PERSONAL_ACCIDENT: "Personal Accident" };
 
 function money(n) {
   const v = Number(n) || 0;
   return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
+// Points 4/5/7/9: every row now carries its own Currency, and shows the
+// computed USD + INR conversion (cascading Local -> USD -> INR, pinned to
+// the claim's Date of Loss) alongside Sub-Limit / Payable / Total.
 export default function CoverageItemsEditor({
   items,
   onChange,
   mode = "select", // "select" | "review"
-  coverNameCatalog, // { MEDICAL: [...], NON_MEDICAL: [...], TRAVEL: [...], PERSONAL_ACCIDENT: [...] }
-  medicalSubCovers, // string[] — only relevant for MEDICAL category rows
+  coverNameCatalog,
+  medicalSubCovers,
   defaultCategory = "TRAVEL",
 }) {
   const updateItem = (index, patch) => {
@@ -31,11 +29,12 @@ export default function CoverageItemsEditor({
     const catalog = coverNameCatalog?.[defaultCategory] || [];
     onChange([
       ...items,
-      { category: defaultCategory, coverageName: catalog[0] || "", subCoverName: null, initialReserve: 0, subLimitAmount: null, payableAmount: null, gopIssueDate: null, remarks: "" },
+      { category: defaultCategory, coverageName: catalog[0] || "", subCoverName: null, currency: "USD", initialReserve: 0, subLimitAmount: null, payableAmount: null, gopIssueDate: null, remarks: "" },
     ]);
   };
 
-  const total = items.reduce((sum, it) => sum + (Number(it.payableAmount ?? it.initialReserve) || 0), 0);
+  const totalINR = items.reduce((sum, it) => sum + (Number(it.amountINR) || 0), 0);
+  const totalUSD = items.reduce((sum, it) => sum + (Number(it.amountUSD) || 0), 0);
 
   return (
     <div>
@@ -45,7 +44,10 @@ export default function CoverageItemsEditor({
             <th>Category</th>
             <th>Cover Name</th>
             <th>Sub-Cover</th>
-            <th>{mode === "select" ? "Initial Reserve" : "Initial Reserve"}</th>
+            <th>Currency</th>
+            <th>Amount (Local)</th>
+            <th>USD</th>
+            <th>INR</th>
             {mode === "review" && <th>Sub-Limit</th>}
             {mode === "review" && <th>Payable</th>}
             {mode === "review" && <th>GOP Issue Date</th>}
@@ -76,9 +78,7 @@ export default function CoverageItemsEditor({
                     <select value={it.coverageName} onChange={(e) => updateItem(i, { coverageName: e.target.value })} style={{ minWidth: 220 }}>
                       {catalog.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
-                  ) : (
-                    it.coverageName
-                  )}
+                  ) : it.coverageName}
                 </td>
                 <td>
                   {it.category === "MEDICAL" ? (
@@ -87,31 +87,32 @@ export default function CoverageItemsEditor({
                         <option value="">Select…</option>
                         {(medicalSubCovers || []).map((s) => <option key={s} value={s}>{s}</option>)}
                       </select>
-                    ) : (
-                      it.subCoverName || "—"
-                    )
-                  ) : (
-                    <span style={{ color: "var(--muted)" }}>N/A</span>
-                  )}
+                    ) : (it.subCoverName || "—")
+                  ) : <span style={{ color: "var(--muted)" }}>N/A</span>}
+                </td>
+                <td>
+                  <select value={it.currency || "USD"} onChange={(e) => updateItem(i, { currency: e.target.value })} style={{ width: 80 }}>
+                    {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </td>
                 <td>
                   {mode === "select" ? (
-                    <input type="number" value={it.initialReserve ?? ""} onChange={(e) => updateItem(i, { initialReserve: e.target.value })} style={{ width: 110 }} />
-                  ) : (
-                    `USD ${money(it.initialReserve)}`
-                  )}
+                    <input type="number" value={it.initialReserve ?? ""} onChange={(e) => updateItem(i, { initialReserve: e.target.value })} style={{ width: 100 }} />
+                  ) : money(it.initialReserve)}
                 </td>
+                <td>{it.amountUSD !== undefined && it.amountUSD !== null ? `$${money(it.amountUSD)}` : "—"}</td>
+                <td>{it.amountINR !== undefined && it.amountINR !== null ? `₹${money(it.amountINR)}` : "—"}</td>
                 {mode === "review" && (
-                  <td><input type="number" value={it.subLimitAmount ?? ""} onChange={(e) => updateItem(i, { subLimitAmount: e.target.value })} style={{ width: 110 }} /></td>
+                  <td><input type="number" value={it.subLimitAmount ?? ""} onChange={(e) => updateItem(i, { subLimitAmount: e.target.value })} style={{ width: 100 }} /></td>
                 )}
                 {mode === "review" && (
-                  <td><input type="number" value={it.payableAmount ?? ""} onChange={(e) => updateItem(i, { payableAmount: e.target.value })} style={{ width: 110 }} /></td>
+                  <td><input type="number" value={it.payableAmount ?? ""} onChange={(e) => updateItem(i, { payableAmount: e.target.value })} style={{ width: 100 }} /></td>
                 )}
                 {mode === "review" && (
                   <td><input type="date" value={it.gopIssueDate || ""} onChange={(e) => updateItem(i, { gopIssueDate: e.target.value })} style={{ width: 140 }} /></td>
                 )}
                 {mode === "review" && (
-                  <td><input type="text" value={it.remarks || ""} onChange={(e) => updateItem(i, { remarks: e.target.value })} style={{ width: 160 }} placeholder="Optional" /></td>
+                  <td><input type="text" value={it.remarks || ""} onChange={(e) => updateItem(i, { remarks: e.target.value })} style={{ width: 150 }} placeholder="Optional" /></td>
                 )}
                 {mode === "select" && (
                   <td><button type="button" className="btn btn-secondary" onClick={() => removeItem(i)}>Remove</button></td>
@@ -123,13 +124,18 @@ export default function CoverageItemsEditor({
         {mode === "review" && items.length > 0 && (
           <tfoot>
             <tr>
-              <td colSpan={5} style={{ textAlign: "right", fontWeight: 700 }}>Total Payable</td>
-              <td style={{ fontWeight: 700 }}>USD {money(total)}</td>
-              <td colSpan={2}></td>
+              <td colSpan={6} style={{ textAlign: "right", fontWeight: 700 }}>Total</td>
+              <td style={{ fontWeight: 700 }}>${money(totalUSD)} / ₹{money(totalINR)}</td>
+              <td colSpan={4}></td>
             </tr>
           </tfoot>
         )}
       </table>
+      {items[0]?.exchangeRateUsed && (
+        <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
+          Exchange rate pinned to Date of Loss ({items[0].exchangeRateUsed.asOfDate}) — 1 USD = ₹{items[0].exchangeRateUsed.usdToINR}
+        </p>
+      )}
       {mode === "select" && (
         <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }} onClick={addItem}>
           + Add another coverage

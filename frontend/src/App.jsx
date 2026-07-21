@@ -9,6 +9,7 @@ import CustomerClaimView from "./pages/customer/CustomerClaimView";
 
 import AgentLayout from "./pages/agent/AgentLayout";
 import AgentClaimsList from "./pages/agent/AgentClaimsList";
+import AgentQueues from "./pages/agent/AgentQueues";
 import AgentNewClaim from "./pages/agent/AgentNewClaim";
 import AgentClaimWorkspace from "./pages/agent/AgentClaimWorkspace";
 
@@ -21,6 +22,7 @@ import AdminPolicies from "./pages/admin/AdminPolicies";
 import AdminPlans from "./pages/admin/AdminPlans";
 import AdminDocumentRequirements from "./pages/admin/AdminDocumentRequirements";
 import AdminInsurerSync from "./pages/admin/AdminInsurerSync";
+import AdminReports from "./pages/admin/AdminReports";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminNotifications from "./pages/admin/AdminNotifications";
 
@@ -58,60 +60,27 @@ export default function App() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to={homeForRole(user.role)} replace /> : <LoginPage />} />
 
-      <Route
-        path="/customer"
-        element={
-          <ProtectedRoute roles={["CUSTOMER"]}>
-            <CustomerLayout><CustomerDashboard /></CustomerLayout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/customer/claims/:id"
-        element={
-          <ProtectedRoute roles={["CUSTOMER"]}>
-            <CustomerLayout><CustomerClaimView /></CustomerLayout>
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/customer" element={<ProtectedRoute roles={["CUSTOMER"]}><CustomerLayout><CustomerDashboard /></CustomerLayout></ProtectedRoute>} />
+      <Route path="/customer/claims/:id" element={<ProtectedRoute roles={["CUSTOMER"]}><CustomerLayout><CustomerClaimView /></CustomerLayout></ProtectedRoute>} />
 
-      <Route
-        path="/agent"
-        element={
-          <ProtectedRoute roles={["AGENT", "SUPER_ADMIN"]}>
-            <AgentLayout />
-          </ProtectedRoute>
-        }
-      >
+      <Route path="/agent" element={<ProtectedRoute roles={["AGENT", "SUPER_ADMIN"]}><AgentLayout /></ProtectedRoute>}>
         <Route index element={<AgentClaimsList />} />
+        <Route path="queues" element={<AgentQueues />} />
         <Route path="new" element={<AgentNewClaim />} />
         <Route path="claims/:id" element={<AgentClaimWorkspace />} />
       </Route>
 
-      <Route
-        path="/insurer"
-        element={
-          <ProtectedRoute roles={["INSURER", "SUPER_ADMIN"]}>
-            <InsurerLayout />
-          </ProtectedRoute>
-        }
-      >
+      <Route path="/insurer" element={<ProtectedRoute roles={["INSURER", "SUPER_ADMIN"]}><InsurerLayout /></ProtectedRoute>}>
         <Route index element={<InsurerClaimsList />} />
         <Route path="claims/:id" element={<InsurerClaimWorkspace />} />
       </Route>
 
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute roles={["SUPER_ADMIN"]}>
-            <AdminLayout />
-          </ProtectedRoute>
-        }
-      >
+      <Route path="/admin" element={<ProtectedRoute roles={["SUPER_ADMIN"]}><AdminLayout /></ProtectedRoute>}>
         <Route index element={<AdminPolicies />} />
         <Route path="plans" element={<AdminPlans />} />
         <Route path="document-requirements" element={<AdminDocumentRequirements />} />
         <Route path="insurer-sync" element={<AdminInsurerSync />} />
+        <Route path="reports" element={<AdminReports />} />
         <Route path="users" element={<AdminUsers />} />
         <Route path="notifications" element={<AdminNotifications />} />
       </Route>

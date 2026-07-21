@@ -1,6 +1,3 @@
-// Across Assist — Travel Claims Management System
-// Prisma schema — PostgreSQL
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -17,8 +14,9 @@ enum UserRole {
   SUPER_ADMIN
 }
 
-// Point 2: the four claim categories a claim (or an individual coverage
-// line within a claim) can belong to.
+// Point 3: NON_MEDICAL kept in the enum only so we never need a destructive
+// migration on old rows — it is no longer offered anywhere in the UI.
+// Travel now absorbs those cover names, plus "Assistance".
 enum ClaimCategory {
   MEDICAL
   NON_MEDICAL
@@ -26,9 +24,6 @@ enum ClaimCategory {
   PERSONAL_ACCIDENT
 }
 
-// High-level lifecycle stage — mirrors the BRD flowchart.
-// Registration only ever happens in the Agent portal.
-// Assessment only ever happens in the Insurer portal.
 enum ClaimStage {
   INTIMATION
   REGISTRATION
@@ -68,11 +63,6 @@ enum NotificationStatus {
   FAILED
 }
 
-// Point 13 continued — a policy that has only received partial data from
-// the insurer's feed so far (e.g. Policy Number + dates, but no Sum Insured
-// yet) stays DRAFT and is hidden from Customer/Agent portals until every
-// core field required to actually service a claim has arrived and it
-// flips to ACTIVE.
 enum PolicyCompletionStatus {
   DRAFT
   ACTIVE
@@ -92,75 +82,55 @@ model User {
   phone        String?
   createdAt    DateTime  @default(now())
 
-  policies       Policy[]       @relation("PolicyOwner")
-  createdClaims  Claim[]        @relation("ClaimCreatedBy")
-  activityLogs   ActivityLog[]
-  documents      Document[]
+  policies      Policy[]       @relation("PolicyOwner")
+  createdClaims Claim[]        @relation("ClaimCreatedBy")
+  activityLogs  ActivityLog[]
+  documents     Document[]
 }
 
-// ---------- Point 5: reusable plan catalog ----------
-// A PlanTemplate is what the insurer actually sells (e.g. "Bronze 25",
-// "Platinum 1000" — seeded straight from travel_crm_Sub_Limits.xlsx).
-// Every policy is issued *against* a plan template, and the policy's own
-// Coverage rows are a materialized copy of the template's PlanCoverage rows
-// at the time the policy was issued — so later edits to a plan template
-// never silently change an already-issued policy's limits.
-// ---------- Point 13: insurer feed authentication + audit trail ----------
-// A real insurer integration authenticates with an API key (not a user
-// login) and can call the feed endpoint many times for the same policy as
-// more fields become available. ApiKey is what the insurer's system
-// presents; InsurerFeedEvent is a permanent, append-only record of every
-// call received — whether it was applied or rejected on validation — so
-// the Admin portal always shows the true history of what the insurer sent
-// and when, not just the outcome of the most recent call.
 model ApiKey {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   label     String
-  key       String    @unique
-  isActive  Boolean   @default(true)
-  createdAt DateTime  @default(now())
+  key       String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
   events    InsurerFeedEvent[]
 }
 
 model InsurerFeedEvent {
-  id           String           @id @default(cuid())
-  apiKeyId     String?
-  apiKey       ApiKey?          @relation(fields: [apiKeyId], references: [id])
-  policyNumber String?
-  payload      Json
-  status       FeedEventStatus
-  errors       Json?
-  appliedFields String[]        // which fields from the payload were actually written, for audit clarity
-  createdAt    DateTime         @default(now())
+  id            String          @id @default(cuid())
+  apiKeyId      String?
+  apiKey        ApiKey?         @relation(fields: [apiKeyId], references: [id])
+  policyNumber  String?
+  payload       Json
+  status        FeedEventStatus
+  errors        Json?
+  appliedFields String[]
+  createdAt     DateTime        @default(now())
 }
 
 model PlanTemplate {
-  id          String   @id @default(cuid())
-  name        String   @unique // e.g. "Bronze 25", "Platinum 1000"
+  id          String         @id @default(cuid())
+  name        String         @unique
   description String?
-  isActive    Boolean  @default(true)
+  isActive    Boolean        @default(true)
   coverages   PlanCoverage[]
   policies    Policy[]
-  createdAt   DateTime @default(now())
+  createdAt   DateTime       @default(now())
 }
 
 model PlanCoverage {
-  id               String        @id @default(cuid())
-  planTemplateId   String
-  planTemplate     PlanTemplate  @relation(fields: [planTemplateId], references: [id], onDelete: Cascade)
-  category         ClaimCategory
-  coverageName     String
-  subCoverName     String?       // only meaningful for MEDICAL category
-  sumInsured       Float
-  subLimitText     String?       // free-text sub-limit description (matches the excel's "USD 1500 Per Day up to 30 Days" style values)
-  deductible       String?
+  id             String        @id @default(cuid())
+  planTemplateId String
+  planTemplate   PlanTemplate  @relation(fields: [planTemplateId], references: [id], onDelete: Cascade)
+  category       ClaimCategory
+  coverageName   String
+  subCoverName   String?
+  sumInsured     Float
+  subLimitText   String?
+  deductible     String?
 }
 
-// ---------- Point 1: dynamic, admin-configurable document requirements ----------
-// Seeded straight from the BRD's coverage/document checklist (36 coverages).
-// Admin can add/edit/remove required documents per coverage name without
-// touching code — every claim workspace's Documents tab reads this list
-// live based on the coverages actually selected on that claim.
 model DocumentRequirement {
   id                String   @id @default(cuid())
   coverageName      String   @unique
@@ -169,33 +139,33 @@ model DocumentRequirement {
 }
 
 model Policy {
-  id             String        @id @default(cuid())
-  policyNumber   String        @unique
-  holderName     String
-  planName       String
-  claimCategory  ClaimCategory @default(TRAVEL)
-  startDate      DateTime
-  endDate        DateTime
-  issuanceDate   DateTime
-  issuancePlace  String?
-  geoCoverage    String
-  issuanceBranch String?
-  countryVisited String?
+  id                 String                  @id @default(cuid())
+  policyNumber       String                  @unique
+  holderName         String
+  planName           String
+  claimCategory      ClaimCategory           @default(TRAVEL)
+  startDate          DateTime
+  endDate            DateTime
+  issuanceDate       DateTime
+  issuancePlace      String?
+  geoCoverage        String
+  issuanceBranch     String?
+  countryVisited     String?
   countryOfResidence String?
-  deductible     String?
-  nomineeName    String?
-  ownerId        String?
-  owner          User?         @relation("PolicyOwner", fields: [ownerId], references: [id])
-  isActive       Boolean       @default(true)
-  completionStatus PolicyCompletionStatus @default(ACTIVE)
+  deductible         String?
+  nomineeName        String?
+  ownerId            String?
+  owner              User?                   @relation("PolicyOwner", fields: [ownerId], references: [id])
+  isActive           Boolean                 @default(true)
+  completionStatus   PolicyCompletionStatus  @default(ACTIVE)
 
   planTemplateId String?
   planTemplate   PlanTemplate? @relation(fields: [planTemplateId], references: [id])
 
-  coverages      Coverage[]
-  members        InsuredMember[]
-  claims         Claim[]
-  createdAt      DateTime      @default(now())
+  coverages Coverage[]
+  members   InsuredMember[]
+  claims    Claim[]
+  createdAt DateTime @default(now())
 }
 
 model Coverage {
@@ -210,69 +180,55 @@ model Coverage {
   deductible   String?
 }
 
-// ---------- Point 12: real insured members, scoped to a policy ----------
-// A claim can only ever be raised for member(s) who actually exist on the
-// policy — the claim initiation screen reads this list to populate the
-// member picker instead of a free-text field.
 model InsuredMember {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   policyId       String
-  policy         Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  policy         Policy    @relation(fields: [policyId], references: [id], onDelete: Cascade)
   name           String
   dob            DateTime?
   passportNumber String?
-  relationship   String?  // Self, Spouse, Child, Parent, etc.
-  createdAt      DateTime @default(now())
+  relationship   String?
+  createdAt      DateTime  @default(now())
 }
 
 model Claim {
-  id                     String      @id @default(cuid())
-  claimNumber            String      @unique
-  parentClaimNumber      String
-  policyId               String
-  policy                 Policy      @relation(fields: [policyId], references: [id])
+  id                String      @id @default(cuid())
+  claimNumber       String      @unique
+  parentClaimNumber String      // Point 2: multiple claims from one initiation share this
+  policyId          String
+  policy            Policy      @relation(fields: [policyId], references: [id])
 
-  // Point 2: the primary category picked at Initiate Claim. Individual
-  // coverage line items (below) each carry their own category too, since a
-  // single claim can legitimately mix e.g. Medical + Non-Medical coverages
-  // (point 4/8/9) even though it's filed under one primary category.
-  claimCategory          ClaimCategory
+  claimCategory ClaimCategory
+  coverages     String[]
+  memberIds     String[]
 
-  coverages              String[]    // display-only summary of coverage names, kept for quick listing
-  memberIds              String[]    // InsuredMember ids this claim was raised for (point 12)
+  stage  ClaimStage  @default(INTIMATION)
+  status ClaimStatus @default(DRAFT)
 
-  stage                  ClaimStage  @default(INTIMATION)
-  status                 ClaimStatus @default(DRAFT)
+  createdById   String
+  createdBy     User        @relation("ClaimCreatedBy", fields: [createdById], references: [id])
+  createdByRole CreatorRole
 
-  createdById            String
-  createdBy              User        @relation("ClaimCreatedBy", fields: [createdById], references: [id])
-  createdByRole          CreatorRole
-
-  // Structured core fields used for search / listing
   insurerClaimIntimationNo   String?
   insurerClaimRegistrationNo String?
 
-  // Point 4/7/8/9: one row per selected coverage — category, cover name,
-  // sub-cover name (medical only), initial reserve (renamed from "estimated
-  // loss"), sub-limit, running total and GOP issue date all live per-item
-  // here rather than as flat claim-level fields, because every coverage on
-  // a multi-coverage claim needs its own values. Stored as JSON (an array
-  // of objects) for the same reason the stage payloads below are JSON —
-  // the shape can evolve without a migration.
-  coverageItems  Json  @default("[]")
+  // Point 4/5/7: each item now also carries currency + computed USD/INR +
+  // the exchange rate actually used (pinned to Date of Loss).
+  coverageItems Json @default("[]")
 
-  // Flexible stage payloads — each stores every wireframe field for that
-  // stage as JSON, keyed by field id. Keeping these as JSONB lets the form
-  // schema evolve (new insurer fields, new coverages) without a migration
-  // for every field, while the columns above stay indexable for search.
-  intimationData   Json  @default("{}")
-  registrationData Json  @default("{}")
-  assessmentData   Json  @default("{}")
-  paymentData      Json  @default("{}")
+  intimationData   Json @default("{}")
+  registrationData Json @default("{}")
+  assessmentData   Json @default("{}")
+  paymentData      Json @default("{}")
 
   deficiencyReason String?
 
-  activityLogs ActivityLog[]
+  // Point 12/14/15: TAT/escalation + queue bucketing state.
+  deficiencyReminderCount Int       @default(0)
+  lastReminderAt          DateTime?
+  deficiencyRaisedAt      DateTime?
+
+  activityLogs  ActivityLog[]
   documents     Document[]
   notifications Notification[]
 
@@ -280,11 +236,6 @@ model Claim {
   updatedAt DateTime @updatedAt
 }
 
-// Point 11: every activity log row already carries who (userId/role) and
-// when (createdAt). "action" doubles as a free-text remark when an agent
-// explicitly adds one via POST /claims/:id/remarks — so the same table
-// serves both the automatic system trail and manual remarks, all in one
-// chronological, attributable feed.
 model ActivityLog {
   id        String   @id @default(cuid())
   claimId   String
@@ -298,30 +249,33 @@ model ActivityLog {
 }
 
 model Document {
-  id             String   @id @default(cuid())
+  id             String     @id @default(cuid())
   claimId        String
-  claim          Claim    @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  claim          Claim      @relation(fields: [claimId], references: [id], onDelete: Cascade)
   uploadedById   String
-  uploadedBy     User     @relation(fields: [uploadedById], references: [id])
+  uploadedBy     User       @relation(fields: [uploadedById], references: [id])
   uploadedByRole UserRole
   stage          ClaimStage
   docType        String
-  fileName       String   // original filename shown to users
-  url            String   // Cloudinary secure_url — no local disk involved
-  publicId       String   // Cloudinary public_id, needed to delete the file later
+  fileName       String
+  url            String
+  publicId       String
   mimeType       String
   sizeBytes      Int
-  createdAt      DateTime @default(now())
+  createdAt      DateTime   @default(now())
+  // Point 22: no delete field/relation removed here on purpose — documents
+  // are permanent once uploaded; re-uploading the same docType is allowed
+  // and simply adds another row.
 }
 
 model Notification {
-  id        String               @id @default(cuid())
+  id        String              @id @default(cuid())
   claimId   String
-  claim     Claim                @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  claim     Claim               @relation(fields: [claimId], references: [id], onDelete: Cascade)
   channel   NotificationChannel
   toAddress String
   subject   String?
   message   String
-  status    NotificationStatus   @default(QUEUED)
-  createdAt DateTime             @default(now())
+  status    NotificationStatus  @default(QUEUED)
+  createdAt DateTime            @default(now())
 }

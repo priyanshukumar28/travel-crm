@@ -2,7 +2,7 @@ const { verifyToken } = require("../utils/jwt");
 
 function authenticate(req, res, next) {
   const header = req.headers.authorization || "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  const token = header.startsWith("Bearer ") ? header.slice(7) : req.query.token || null;
 
   if (!token) {
     return res.status(401).json({ message: "Missing or invalid Authorization header." });
@@ -10,7 +10,7 @@ function authenticate(req, res, next) {
 
   try {
     const payload = verifyToken(token);
-    req.user = payload; // { id, role, name, email }
+    req.user = payload;
     next();
   } catch (err) {
     return res.status(401).json({ message: "Session expired or token invalid. Please log in again." });
