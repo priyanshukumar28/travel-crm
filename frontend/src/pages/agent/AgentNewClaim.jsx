@@ -158,7 +158,7 @@ export default function AgentNewClaim() {
                     </div>
                   )}
 
-                  <CoverageItemsEditor items={grp.coverageItems} onChange={(items) => setGroupCoverageItems(i, items)} mode="select" coverNameCatalog={coverNameCatalog} medicalSubCovers={MEDICAL_SUB_COVERS} defaultCategory={grp.claimCategory} policyMembers={policy.members || []} />
+                  <CoverageItemsEditor items={grp.coverageItems} onChange={(items) => setGroupCoverageItems(i, items)} mode="select" coverNameCatalog={coverNameCatalog} medicalSubCovers={MEDICAL_SUB_COVERS} defaultCategory={grp.claimCategory} />
                 </div>
               </div>
             ))}

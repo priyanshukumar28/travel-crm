@@ -2,7 +2,7 @@ const express = require("express");
 const { authenticate, authorizeRoles } = require("../middleware/auth");
 const {
   listClaims, listQueues,
-  getClaim, getRequiredDocuments,
+  getClaim, getRequiredDocuments, getLinkedClaims,
   createClaim,
   updateIntimation, submitIntimation,
   validateClaim, sendReminder, resubmitIntimation,
@@ -18,6 +18,7 @@ router.get("/", listClaims);
 router.get("/queues", authorizeRoles("AGENT", "SUPER_ADMIN"), listQueues); // point 15
 router.get("/:id", getClaim);
 router.get("/:id/required-documents", getRequiredDocuments);
+router.get("/:id/linked", getLinkedClaims);
 
 router.post("/", authorizeRoles("CUSTOMER", "AGENT", "SUPER_ADMIN"), createClaim);
 router.patch("/:id/intimation", authorizeRoles("CUSTOMER", "AGENT", "SUPER_ADMIN"), updateIntimation);

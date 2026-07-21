@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import client from "../../api/client";
 import DocumentUpload from "../../components/DocumentUpload";
+import LinkedClaims from "../../components/LinkedClaims";
 import CoverageItemsEditor from "../../components/CoverageItemsEditor";
 import { INTIMATION_SCHEMA, REGISTRATION_SCHEMA } from "../../lib/fieldSchemas";
 import { FALLBACK_COVER_NAMES, MEDICAL_SUB_COVERS, CATEGORY_LABELS } from "../../lib/catalog";
@@ -167,7 +168,7 @@ export default function AgentClaimWorkspace() {
 
         {tab === "Coverage Items" && (
           <Card title="Coverage Items" subtitle="Currency, sub-limit and payable per coverage — validated against the policy's sum insured for Medical Expenses / Evacuation / Repatriation (point 18)">
-            <CoverageItemsEditor items={claim.coverageItems || []} onChange={setCoverageItems} mode="review" coverNameCatalog={FALLBACK_COVER_NAMES} medicalSubCovers={MEDICAL_SUB_COVERS} policyMembers={claim.policy?.members || []} />
+            <CoverageItemsEditor items={claim.coverageItems || []} onChange={setCoverageItems} mode="review" coverNameCatalog={FALLBACK_COVER_NAMES} medicalSubCovers={MEDICAL_SUB_COVERS} />
             {validationErrors.length > 0 && (
               <div className="login-error" style={{ marginTop: 12 }}>{validationErrors.map((e, i) => <div key={i}>{e}</div>)}</div>
             )}
@@ -260,6 +261,8 @@ export default function AgentClaimWorkspace() {
           </div>
         )}
       </Card>
+
+      <LinkedClaims claimId={id} basePath="/agent/claims" />
     </div>
   );
 }

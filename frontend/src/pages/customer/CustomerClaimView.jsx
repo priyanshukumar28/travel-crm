@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import client from "../../api/client";
 import DocumentUpload from "../../components/DocumentUpload";
+import LinkedClaims from "../../components/LinkedClaims";
 import { INTIMATION_SCHEMA } from "../../lib/fieldSchemas";
 import { CATEGORY_LABELS } from "../../lib/catalog";
 import {
@@ -72,7 +73,7 @@ export default function CustomerClaimView() {
               <InfoTile
                 key={i}
                 label={`${it.coverageName}${it.subCoverName ? ` — ${it.subCoverName}` : ""}`}
-                value={`Initial Reserve: ${it.initialReserve || 0}${it.payableAmount ? ` · Payable: ${it.payableAmount}` : ""}`}
+                value={`Initial Reserve: ${it.currency || "USD"} ${it.initialReserve || 0}${it.payableAmount ? ` · Payable: ${it.payableAmount}` : ""}`}
               />
             ))}
           </div>
@@ -95,7 +96,7 @@ export default function CustomerClaimView() {
                 onChange={setField}
                 role="CUSTOMER"
                 stage="INTIMATION"
-                defaultOpen={i < 2}
+                defaultOpen={i < 1}
               />
             ))}
             <div className="action-bar">
@@ -117,7 +118,7 @@ export default function CustomerClaimView() {
             </div>
             <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 16 }}>
               Registration and assessment are handled by our claims desk and the insurer. You'll be notified by
-              email / SMS / WhatsApp as your claim progresses — no further action is needed from you right now.
+              email as your claim progresses — no further action is needed from you right now.
             </p>
             {claim.status === "APPROVED" && claim.paymentData?.finalPayableAmount && (
               <InfoTile label="Approved Payable Amount" value={`₹${claim.paymentData.finalPayableAmount}`} />
@@ -131,6 +132,8 @@ export default function CustomerClaimView() {
           </>
         )}
       </Card>
+
+      <LinkedClaims claimId={id} basePath="/customer/claims" />
 
       <DocumentUpload claimId={id} />
     </div>

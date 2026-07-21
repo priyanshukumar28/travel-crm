@@ -172,7 +172,7 @@ export default function CustomerDashboard() {
                 coverNameCatalog={coverNameCatalog}
                 medicalSubCovers={MEDICAL_SUB_COVERS}
                 defaultCategory={grp.claimCategory}
-                policyMembers={policy.members || []}
+               
               />
             </div>
           </div>

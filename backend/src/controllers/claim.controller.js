@@ -71,7 +71,7 @@ const listQueues = asyncHandler(async (req, res) => {
 });
 
 const getClaim = asyncHandler(async (req, res) => {
-  const claim = await prisma.claim.findUnique({
+  let claim = await prisma.claim.findUnique({
     where: { id: req.params.id },
     include: {
       policy: { include: { coverages: true, members: true } },
@@ -79,7 +79,55 @@ const getClaim = asyncHandler(async (req, res) => {
     },
   });
   if (!claim) return res.status(404).json({ message: "Claim not found." });
+
+  // Self-heal: if Policy Details / Reported Date/Time are missing from
+  // intimationData (e.g. this claim was created before autofill was wired
+  // up, or the creating request predates a deploy that added it), backfill
+  // them from the policy now and persist so this only ever happens once.
+  const missingAutofill =
+    !claim.intimationData?.holderName ||
+    !claim.intimationData?.policyIssuanceDate ||
+    !claim.intimationData?.reportedDate;
+
+  if (missingAutofill) {
+    const now = new Date();
+    const backfill = {
+      policyIssuanceDate: claim.intimationData?.policyIssuanceDate || claim.policy.issuanceDate.toISOString().slice(0, 10),
+      inceptionDate: claim.intimationData?.inceptionDate || claim.policy.startDate.toISOString().slice(0, 10),
+      expiryDate: claim.intimationData?.expiryDate || claim.policy.endDate.toISOString().slice(0, 10),
+      holderName: claim.intimationData?.holderName || claim.policy.holderName,
+      reportedDate: claim.intimationData?.reportedDate || claim.createdAt.toISOString().slice(0, 10),
+      reportedTime: claim.intimationData?.reportedTime || claim.createdAt.toTimeString().slice(0, 5),
+    };
+    claim = await prisma.claim.update({
+      where: { id: claim.id },
+      data: { intimationData: { ...claim.intimationData, ...backfill } },
+      include: {
+        policy: { include: { coverages: true, members: true } },
+        activityLogs: { orderBy: { createdAt: "asc" }, include: { user: true } },
+      },
+    });
+  }
+
   res.json({ ...claim, queueBucket: computeQueueBucket(claim) });
+});
+
+// GET /api/claims/:id/linked
+// Point 2: when Customer/Agent files multiple claims in one sitting (e.g.
+// Member A — Medical, Member B — Travel), each becomes its own Claim row,
+// linked only by sharing the same parentClaimNumber. This surfaces the
+// siblings so they're visible together instead of being invisible to each
+// other once created.
+const getLinkedClaims = asyncHandler(async (req, res) => {
+  const claim = await prisma.claim.findUnique({ where: { id: req.params.id } });
+  if (!claim) return res.status(404).json({ message: "Claim not found." });
+
+  const siblings = await prisma.claim.findMany({
+    where: { parentClaimNumber: claim.parentClaimNumber, id: { not: claim.id } },
+    include: { policy: true },
+    orderBy: { createdAt: "asc" },
+  });
+  res.json(siblings.map((c) => ({ ...c, queueBucket: computeQueueBucket(c) })));
 });
 
 const getRequiredDocuments = asyncHandler(async (req, res) => {
@@ -182,7 +230,6 @@ const createClaim = asyncHandler(async (req, res) => {
         category: item.category || claimCategory,
         coverageName: item.coverageName,
         subCoverName: item.subCoverName || null,
-        memberId: validMemberIds.has(item.memberId) ? item.memberId : null, // who this specific coverage was applied for
         currency,
         initialReserve: Number(item.initialReserve) || 0,
         amountUSD: converted.amountUSD,
@@ -528,7 +575,7 @@ const closeDeficient = asyncHandler(async (req, res) => {
 
 module.exports = {
   listClaims, listQueues,
-  getClaim, getRequiredDocuments,
+  getClaim, getRequiredDocuments, getLinkedClaims,
   createClaim,
   updateIntimation, submitIntimation,
   validateClaim, sendReminder, resubmitIntimation,

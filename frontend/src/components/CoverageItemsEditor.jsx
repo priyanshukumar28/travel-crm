@@ -42,7 +42,6 @@ export default function CoverageItemsEditor({
   coverNameCatalog,
   medicalSubCovers,
   defaultCategory = "TRAVEL",
-  policyMembers = [], // point: real "who applied for what" attribution
 }) {
   const [expandedIndex, setExpandedIndex] = useState(null);
 
@@ -59,13 +58,12 @@ export default function CoverageItemsEditor({
     const catalog = coverNameCatalog?.[defaultCategory] || [];
     onChange([
       ...items,
-      { category: defaultCategory, coverageName: catalog[0] || "", subCoverName: null, currency: "USD", initialReserve: 0, subLimitAmount: null, payableAmount: null, memberId: null, detail: {} },
+      { category: defaultCategory, coverageName: catalog[0] || "", subCoverName: null, currency: "USD", initialReserve: 0, subLimitAmount: null, payableAmount: null, detail: {} },
     ]);
   };
 
   const totalINR = items.reduce((sum, it) => sum + (Number(it.amountINR) || 0), 0);
   const totalUSD = items.reduce((sum, it) => sum + (Number(it.amountUSD) || 0), 0);
-  const memberName = (id) => policyMembers.find((m) => m.id === id)?.name;
 
   return (
     <div>
@@ -75,7 +73,6 @@ export default function CoverageItemsEditor({
             <th>Category</th>
             <th>Cover Name</th>
             <th>Sub-Cover</th>
-            <th>Applied For</th>
             <th>Currency</th>
             <th>Initial Reserve (Local)</th>
             <th>USD</th>
@@ -123,14 +120,6 @@ export default function CoverageItemsEditor({
                     ) : <span style={{ color: "var(--muted)" }}>N/A</span>}
                   </td>
                   <td>
-                    {policyMembers.length > 0 ? (
-                      <select value={it.memberId || ""} onChange={(e) => updateItem(i, { memberId: e.target.value || null })} style={{ minWidth: 140 }}>
-                        <option value="">Select member…</option>
-                        {policyMembers.map((m) => <option key={m.id} value={m.id}>{m.name}{m.relationship ? ` (${m.relationship})` : ""}</option>)}
-                      </select>
-                    ) : (memberName(it.memberId) || "—")}
-                  </td>
-                  <td>
                     <select value={it.currency || "USD"} onChange={(e) => updateItem(i, { currency: e.target.value })} style={{ width: 80 }}>
                       {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
@@ -159,7 +148,7 @@ export default function CoverageItemsEditor({
                 </tr>
                 {mode === "review" && expandedIndex === i && details.length > 0 && (
                   <tr>
-                    <td colSpan={11} style={{ background: "#FAFBFD" }}>
+                    <td colSpan={10} style={{ background: "#FAFBFD" }}>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 14, padding: "12px 4px" }}>
                         {details.map((f) => (
                           <div key={f.id} className="field" style={{ minWidth: 160 }}>
@@ -185,8 +174,8 @@ export default function CoverageItemsEditor({
         {mode === "review" && items.length > 0 && (
           <tfoot>
             <tr>
-              <td colSpan={7} style={{ textAlign: "right", fontWeight: 700 }}>Total</td>
-              <td style={{ fontWeight: 700 }}>${money(totalUSD)} / ₹{money(totalINR)}</td>
+              <td colSpan={5} style={{ textAlign: "right", fontWeight: 700 }}>Total</td>
+              <td colSpan={2} style={{ fontWeight: 700 }}>${money(totalUSD)} / ₹{money(totalINR)}</td>
               <td colSpan={3}></td>
             </tr>
           </tfoot>
