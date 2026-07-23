@@ -1,21 +1,18 @@
 // Points 4/5/7/8/9: every amount cascades Local Currency -> USD -> INR, and
 // the rate used is the rate AS OF THE DATE OF LOSS (not today's rate).
 //
-// Point 8: this now genuinely calls a live historical-FX API when one is
-// configured (EXCHANGE_RATE_API_KEY in env), and transparently falls back
-// to the static reference table below if no key is set, the API errors,
-// or the request times out — so the app never breaks even if the FX
-// provider has an outage. Results are cached in-memory per date so a claim
-// with 5 coverages on the same Date of Loss only makes ONE outbound call,
-// not five.
+// Point 8: calls currencyapi.net's Historical Rates endpoint (v2) when
+// EXCHANGE_RATE_API_KEY is configured, falling back to the static table
+// below if no key is set, the API errors, the plan doesn't include
+// historical data, or the request times out — the app never breaks even
+// if the FX provider has an outage. Results are cached in-memory per date
+// so a claim with 5 coverages on the same Date of Loss makes ONE outbound
+// call, not five (historical rates for a past date never change anyway).
 //
-// Provider assumed: exchangerate-api.com's historical endpoint —
-//   GET https://v6.exchangerate-api.com/v6/{KEY}/history/USD/{Y}/{M}/{D}
-//   -> { result: "success", conversion_rates: { INR: 83.1, EUR: 0.92, ... } }
-// If you're using a different provider, only buildHistoricalUrl() and the
-// response-parsing line in fetchLiveRates() need to change — everything
-// else (caching, fallback, the convert() contract every caller uses)
-// stays the same.
+// Provider: currencyapi.net — GET /api/v2/history?key=...&date=YYYY-MM-DD&base=USD&output=json
+//   -> { valid: true, base: "USD", date: "...", rates: { INR: 83.1, EUR: 0.92, ... } }
+// (A currency with no data for that date comes back as `null` in `rates` —
+// handled below by falling through to the static table for that currency.)
 
 const STATIC_USD_RATES = {
   // <currency>: units of that currency per 1 USD.
@@ -46,10 +43,10 @@ const rateCache = new Map();
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12h — historical rates for a past date never change, but keep it bounded
 
 function buildHistoricalUrl(dateStr) {
-  const [y, m, d] = dateStr.split("-");
-  const base = process.env.EXCHANGE_RATE_API_BASE_URL || "https://v6.exchangerate-api.com/v6";
+  const apiUrl = process.env.EXCHANGE_RATE_API_BASE_URL || "https://currencyapi.net/api/v2/history";
   const key = process.env.EXCHANGE_RATE_API_KEY;
-  return `${base}/${key}/history/USD/${y}/${Number(m)}/${Number(d)}`;
+  const params = new URLSearchParams({ key, date: dateStr, base: "USD", output: "json" });
+  return `${apiUrl}?${params.toString()}`;
 }
 
 async function fetchLiveRates(dateStr) {
@@ -63,9 +60,9 @@ async function fetchLiveRates(dateStr) {
     clearTimeout(timeout);
     if (!res.ok) throw new Error(`FX API responded ${res.status}`);
     const data = await res.json();
-    if (data.result !== "success" || !data.conversion_rates) throw new Error("Unexpected FX API response shape");
-    rateCache.set(dateStr, { rates: data.conversion_rates, fetchedAt: Date.now() });
-    return data.conversion_rates;
+    if (!data.valid || !data.rates) throw new Error(`Unexpected FX API response (valid=${data.valid})`);
+    rateCache.set(dateStr, { rates: data.rates, fetchedAt: Date.now() });
+    return data.rates;
   } catch (err) {
     clearTimeout(timeout);
     console.error(`[exchangeRate] Live FX fetch failed for ${dateStr}, falling back to static table:`, err.message);
