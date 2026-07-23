@@ -5,7 +5,7 @@ import DocumentUpload from "../../components/DocumentUpload";
 import LinkedClaims from "../../components/LinkedClaims";
 import CoverageItemsEditor from "../../components/CoverageItemsEditor";
 import { INTIMATION_SCHEMA, REGISTRATION_SCHEMA } from "../../lib/fieldSchemas";
-import { FALLBACK_COVER_NAMES, MEDICAL_SUB_COVERS, CATEGORY_LABELS } from "../../lib/catalog";
+import { FALLBACK_COVER_NAMES, CATEGORY_LABELS } from "../../lib/catalog";
 import {
   Card, InfoTile, PrimaryBtn, SecondaryBtn, DangerBtn, EmptyNote,
   StageStepper, SchemaGroup, StatusBadge, FieldRow, Badge, memberNamesForClaim,
@@ -78,6 +78,12 @@ export default function AgentClaimWorkspace() {
     await load();
   };
   const processPayment = async () => { await savePayment(); await client.post(`/claims/${id}/close`); await load(); };
+  const reopenClaim = async () => {
+    const reason = window.prompt("Why are you reopening this claim? (shown to the customer)");
+    if (reason === null) return; // cancelled
+    await client.post(`/claims/${id}/reopen`, { reason });
+    await load();
+  };
   const submitRemark = async () => {
     if (!remarkText.trim()) return;
     await client.post(`/claims/${id}/remarks`, { message: remarkText.trim() });
@@ -85,7 +91,7 @@ export default function AgentClaimWorkspace() {
     await load();
   };
 
-  const stageIdx = ["INTIMATION", "REGISTRATION", "ASSESSMENT", "PAYMENT"].indexOf(claim.stage);
+  const stageIdx = claim.stage === "CLOSED" ? 3 : ["INTIMATION", "REGISTRATION", "ASSESSMENT", "PAYMENT"].indexOf(claim.stage);
   const canEditCoverageItems = ["INTIMATION", "REGISTRATION"].includes(claim.stage);
   const qb = QUEUE_BADGE[claim.queueBucket] || {};
   const reserveChangeLogs = (claim.activityLogs || []).filter((l) => l.meta?.type === "reserve_change");
@@ -177,7 +183,7 @@ export default function AgentClaimWorkspace() {
 
         {tab === "Coverage Items" && (
           <Card title="Coverage Items" subtitle="Currency, sub-limit and payable per coverage — validated against the policy's sum insured for Medical Expenses / Evacuation / Repatriation (point 18)">
-            <CoverageItemsEditor items={claim.coverageItems || []} onChange={setCoverageItems} mode="review" coverNameCatalog={FALLBACK_COVER_NAMES} medicalSubCovers={MEDICAL_SUB_COVERS} />
+            <CoverageItemsEditor items={claim.coverageItems || []} onChange={setCoverageItems} mode="review" coverNameCatalog={FALLBACK_COVER_NAMES} dateOfLoss={claim.intimationData?.dateOfLoss} />
             {validationErrors.length > 0 && (
               <div className="login-error" style={{ marginTop: 12 }}>{validationErrors.map((e, i) => <div key={i}>{e}</div>)}</div>
             )}
@@ -224,11 +230,20 @@ export default function AgentClaimWorkspace() {
           </>
         )}
 
-        {tab === "Documents" && <DocumentUpload claimId={id} />}
+        {tab === "Documents" && <DocumentUpload claimId={id} coverageItems={claim.coverageItems} />}
 
         {tab === "Payment" && (
           stageIdx < 3 ? <EmptyNote text="Payment unlocks once the Insurer records a decision on the Assessment." /> : (
             <>
+              {claim.stage === "CLOSED" && (
+                <Card title="Case Closed" subtitle="Point 4 — reopening is an Agent-only action; it sends the claim back to Registration for rework">
+                  <div className="grid-2" style={{ marginBottom: 16 }}>
+                    <InfoTile label="Reopen Count" value={claim.reopenCount || 0} />
+                    <InfoTile label="Last Reopened" value={claim.reopenedAt ? new Date(claim.reopenedAt).toLocaleString() : "Never"} />
+                  </div>
+                  <SecondaryBtn onClick={reopenClaim}>Reopen Claim</SecondaryBtn>
+                </Card>
+              )}
               {claim.status === "REJECTED" ? (
                 <Card title="Repudiation">
                   <p style={{ fontSize: 12.5, color: "var(--muted)" }}>

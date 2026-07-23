@@ -51,6 +51,17 @@ export default function CustomerClaimView() {
 
   const canEditIntimation = claim.stage === "INTIMATION" && ["DRAFT", "DEFICIENT"].includes(claim.status);
 
+  // Point 7: groups made up entirely of Agent-filled fields (Claimant
+  // Details, Communication, Airline/Carrier, Investigator, Document
+  // Details) are hidden from the customer entirely, not just disabled —
+  // showing a customer a form section they can never fill in is exactly
+  // the "confusion" they asked to avoid. A group stays visible if it has
+  // at least one field the customer actually owns, or a system/autofill
+  // field worth seeing (e.g. Reported Date).
+  const visibleGroups = INTIMATION_SCHEMA.filter((g) =>
+    g.fields.some((f) => ["customer", "system", "autofill"].includes(f.source))
+  );
+
   return (
     <div>
       <SecondaryBtn onClick={() => navigate("/customer")}>← Back to My Policy</SecondaryBtn>
@@ -97,7 +108,7 @@ export default function CustomerClaimView() {
 
         {claim.stage === "INTIMATION" ? (
           <>
-            {INTIMATION_SCHEMA.map((g, i) => (
+            {visibleGroups.map((g, i) => (
               <SchemaGroup
                 key={g.title}
                 group={g}
@@ -144,7 +155,7 @@ export default function CustomerClaimView() {
 
       <LinkedClaims claimId={id} basePath="/customer/claims" />
 
-      <DocumentUpload claimId={id} />
+      <DocumentUpload claimId={id} coverageItems={claim.coverageItems} />
     </div>
   );
 }

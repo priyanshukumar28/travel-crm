@@ -13,6 +13,7 @@ const planTemplateRoutes = require("./routes/planTemplate.routes");
 const documentRequirementRoutes = require("./routes/documentRequirement.routes");
 const insurerFeedRoutes = require("./routes/insurerFeed.routes");
 const reportRoutes = require("./routes/report.routes");
+const fxRoutes = require("./routes/fx.routes");
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/plans", planTemplateRoutes);
 app.use("/api/document-requirements", documentRequirementRoutes);
 app.use("/api/insurer-feed", insurerFeedRoutes);
+app.use("/api/fx", fxRoutes);
 app.use("/api/reports", reportRoutes); // points 20/21 — deliberately NOT under /api/admin, see report.routes.js for its own role check (Admin + Agent)
 
 app.use(notFoundHandler);

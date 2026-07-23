@@ -8,7 +8,7 @@ const {
   validateClaim, sendReminder, resubmitIntimation,
   updateRegistration, submitToInsurer,
   updateAssessment, updateCoverageItems, addRemark,
-  insurerDecision, updatePayment, closeClaim, closeDeficient,
+  insurerDecision, updatePayment, closeClaim, closeDeficient, reopenClaim,
 } = require("../controllers/claim.controller");
 
 const router = express.Router();
@@ -40,5 +40,6 @@ router.post("/:id/remarks", authorizeRoles("AGENT", "INSURER", "SUPER_ADMIN"), a
 
 router.patch("/:id/payment", authorizeRoles("AGENT", "SUPER_ADMIN"), updatePayment);
 router.post("/:id/close", authorizeRoles("AGENT", "SUPER_ADMIN"), closeClaim);
+router.post("/:id/reopen", authorizeRoles("AGENT", "SUPER_ADMIN"), reopenClaim); // point 4
 
 module.exports = router;

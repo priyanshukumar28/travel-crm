@@ -8,7 +8,7 @@ import {
   INTIMATION_SCHEMA, REGISTRATION_SCHEMA,
   ASSESSMENT_CORE, ASSESSMENT_COMMON,
 } from "../../lib/fieldSchemas";
-import { FALLBACK_COVER_NAMES, MEDICAL_SUB_COVERS, CATEGORY_LABELS } from "../../lib/catalog";
+import { FALLBACK_COVER_NAMES, CATEGORY_LABELS } from "../../lib/catalog";
 import {
   Card, PrimaryBtn, SecondaryBtn, DangerBtn, EmptyNote,
   StageStepper, SchemaGroup, StatusBadge, Badge, memberNamesForClaim,
@@ -137,7 +137,7 @@ export default function InsurerClaimWorkspace() {
 
         {tab === "Coverage Items" && (
           <Card title="Coverage Items" subtitle="Sub-limit, payable, GOP issue date and currency conversion per coverage">
-            <CoverageItemsEditor items={claim.coverageItems || []} onChange={setCoverageItems} mode="review" coverNameCatalog={FALLBACK_COVER_NAMES} medicalSubCovers={MEDICAL_SUB_COVERS} />
+            <CoverageItemsEditor items={claim.coverageItems || []} onChange={setCoverageItems} mode="review" coverNameCatalog={FALLBACK_COVER_NAMES} dateOfLoss={claim.intimationData?.dateOfLoss} />
             {validationErrors.length > 0 && (
               <div className="login-error" style={{ marginTop: 12 }}>{validationErrors.map((e, i) => <div key={i}>{e}</div>)}</div>
             )}
@@ -149,7 +149,7 @@ export default function InsurerClaimWorkspace() {
           </Card>
         )}
 
-        {tab === "Documents" && <DocumentUpload claimId={id} />}
+        {tab === "Documents" && <DocumentUpload claimId={id} coverageItems={claim.coverageItems} />}
 
         {tab === "Intimation (read-only)" && INTIMATION_SCHEMA.map((g) => (
           <SchemaGroup key={g.title} group={g} data={claim.intimationData} onChange={() => {}} role="VIEW" stage="NONE" />

@@ -149,13 +149,17 @@ const getRequiredDocuments = asyncHandler(async (req, res) => {
   res.json({ coverageNames, documents });
 });
 
-// Point 6 — Date of Loss must fall within the policy's validity window.
-function validateDateOfLossAgainstPolicy(dateOfLoss, policy) {
-  if (!dateOfLoss) return null;
+// Point 6 (and the "remove shared Date of Loss" follow-up) — each coverage
+// carries its OWN Date of Loss now (item.detail.dateOfLoss), not one shared
+// claim-level field. Validates that a given item's date is present and
+// falls within the policy's validity window.
+function validateItemDateOfLoss(item, policy) {
+  const dateOfLoss = item.detail?.dateOfLoss;
+  if (!dateOfLoss) return `${item.coverageName || "A coverage"}: Date of Loss is required.`;
   const d = new Date(dateOfLoss);
-  if (isNaN(d.getTime())) return "Date of Loss is not a valid date.";
+  if (isNaN(d.getTime())) return `${item.coverageName || "A coverage"}: Date of Loss is not a valid date.`;
   if (d < new Date(policy.startDate) || d > new Date(policy.endDate)) {
-    return `Policy is expired or not yet active for this Date of Loss (policy valid ${new Date(policy.startDate).toLocaleDateString()} – ${new Date(policy.endDate).toLocaleDateString()}).`;
+    return `${item.coverageName || "A coverage"}: policy is expired or not yet active for this Date of Loss (policy valid ${new Date(policy.startDate).toLocaleDateString()} – ${new Date(policy.endDate).toLocaleDateString()}).`;
   }
   return null;
 }
@@ -192,9 +196,14 @@ const createClaim = asyncHandler(async (req, res) => {
     return res.status(403).json({ message: "You can only initiate claims against your own policy." });
   }
 
-  // Point 6 — check once up front against the Date of Loss on the shared intimation.
-  const dolError = validateDateOfLossAgainstPolicy(intimationData?.dateOfLoss, policy);
-  if (dolError) return res.status(400).json({ message: dolError });
+  // Validate every coverage item's own Date of Loss, across all groups,
+  // before writing anything — no shared claim-level date anymore.
+  for (const group of claimGroups) {
+    for (const item of group.coverageItems || []) {
+      const err = validateItemDateOfLoss(item, policy);
+      if (err) return res.status(400).json({ message: err });
+    }
+  }
 
   const validMemberIds = new Set(policy.members.map((m) => m.id));
   const parentClaimNumber = generateParentClaimNumber();
@@ -222,10 +231,15 @@ const createClaim = asyncHandler(async (req, res) => {
 
     const chosenMemberIds = (memberIds || []).filter((id) => validMemberIds.has(id));
 
-    // Point 4/5/7 — compute USD/INR for every item now, using Date of Loss.
-    const normalizedItems = coverageItems.map((item) => {
+    // Point 4/5/7/8 — compute USD/INR for every item now, using Date of Loss
+    // (live historical rate if EXCHANGE_RATE_API_KEY is configured, static
+    // fallback otherwise). Point 3 — Country/City/Zipcode/Region/Description
+    // of Loss are captured per-coverage, by the Customer, at intimation time
+    // via item.detail (see Coverage Items editor) — preserved as-is below,
+    // not overwritten.
+    const normalizedItems = await Promise.all(coverageItems.map(async (item) => {
       const currency = item.currency || "USD";
-      const converted = convert(item.initialReserve, currency, intimationData?.dateOfLoss);
+      const converted = await convert(item.initialReserve, currency, item.detail?.dateOfLoss);
       return {
         category: item.category || claimCategory,
         coverageName: item.coverageName,
@@ -239,9 +253,9 @@ const createClaim = asyncHandler(async (req, res) => {
         payableAmount: null,
         gopIssueDate: null,
         remarks: item.remarks || null,
-        detail: {}, // per-coverage GST/disallowed/etc. — filled in at Registration/Assessment
+        detail: { ...item.detail }, // Country/City/Zipcode/Region/Description/Date of Loss, exactly as the customer entered per coverage
       };
-    });
+    }));
 
     const claim = await prisma.claim.create({
       data: {
@@ -284,10 +298,6 @@ const updateIntimation = asyncHandler(async (req, res) => {
   }
 
   const merged = { ...claim.intimationData, ...req.body.intimationData };
-  // Point 6 — re-validate on every save, not just at submit.
-  const dolError = validateDateOfLossAgainstPolicy(merged.dateOfLoss, claim.policy);
-  if (dolError) return res.status(400).json({ message: dolError });
-
   const updated = await prisma.claim.update({ where: { id: claim.id }, data: { intimationData: merged } });
   await logActivity(claim.id, req.user, "Intimation details updated");
   res.json(updated);
@@ -298,8 +308,10 @@ const submitIntimation = asyncHandler(async (req, res) => {
   if (!claim) return res.status(404).json({ message: "Claim not found." });
   if (claim.stage !== "INTIMATION") return res.status(409).json({ message: "This claim has already moved past Intimation." });
 
-  const dolError = validateDateOfLossAgainstPolicy(claim.intimationData?.dateOfLoss, claim.policy);
-  if (dolError) return res.status(400).json({ message: dolError });
+  for (const item of claim.coverageItems || []) {
+    const err = validateItemDateOfLoss(item, claim.policy);
+    if (err) return res.status(400).json({ message: err });
+  }
 
   const updated = await prisma.claim.update({ where: { id: claim.id }, data: { status: "SUBMITTED_FOR_VALIDATION" } });
   await logActivity(claim.id, req.user, "Submitted claim intimation");
@@ -343,8 +355,8 @@ const validateClaim = asyncHandler(async (req, res) => {
     regClaimantMobile: claim.intimationData.claimantMobile || claim.intimationData.m1Contact,
     regCommEmail: claim.intimationData.commEmail,
     regCommMobile: claim.intimationData.commContact,
-    regDateOfLoss: claim.intimationData.dateOfLoss,
-    regCountryOfLoss: claim.intimationData.countryOfLoss,
+    regDateOfLoss: firstItem.detail?.dateOfLoss,
+    regCountryOfLoss: firstItem.detail?.countryOfLoss,
     regAirlineName: claim.intimationData.airlineName,
     regAirlineNumber: claim.intimationData.flightNumber,
     coverName: firstItem.coverageName,
@@ -486,10 +498,10 @@ const updateCoverageItems = asyncHandler(async (req, res) => {
   }
 
   // Recompute currency conversion in case initialReserve or currency changed.
-  const recomputed = newItems.map((item) => {
-    const converted = convert(item.initialReserve, item.currency || "USD", claim.intimationData?.dateOfLoss);
+  const recomputed = await Promise.all(newItems.map(async (item) => {
+    const converted = await convert(item.initialReserve, item.currency || "USD", item.detail?.dateOfLoss || claim.intimationData?.dateOfLoss);
     return { ...item, amountUSD: converted.amountUSD, amountINR: converted.amountINR, exchangeRateUsed: converted.exchangeRateUsed };
-  });
+  }));
 
   const updated = await prisma.claim.update({ where: { id: claim.id }, data: { coverageItems: recomputed } });
 
@@ -573,6 +585,39 @@ const closeDeficient = asyncHandler(async (req, res) => {
   res.json(updated);
 });
 
+// POST /api/claims/:id/reopen — Agent only, point 4.
+// Reopening is deliberately kept in the Agent's hands (not Customer or
+// Insurer) since it's the Agent who owns the operational decision to
+// rework a case. Sends the claim back to Registration so the whole
+// back-half of the process (registration -> insurer -> assessment ->
+// payment) can be redone; reopenedAt/reopenCount are tracked so the MIS
+// export's "Reopen Date" column is real data, not a placeholder.
+const reopenClaim = asyncHandler(async (req, res) => {
+  const claim = await prisma.claim.findUnique({ where: { id: req.params.id } });
+  if (!claim) return res.status(404).json({ message: "Claim not found." });
+  if (claim.stage !== "CLOSED") {
+    return res.status(409).json({ message: "Only a closed claim can be reopened." });
+  }
+
+  const { reason } = req.body;
+  const updated = await prisma.claim.update({
+    where: { id: claim.id },
+    data: {
+      stage: "REGISTRATION",
+      status: "VALIDATED",
+      reopenedAt: new Date(),
+      reopenCount: { increment: 1 },
+    },
+  });
+  await logActivity(claim.id, req.user, `Claim reopened${reason ? `: ${reason}` : ""}`, { type: "reopen", reason: reason || null });
+  await notifyClaimEvent(updated, {
+    subject: `Claim ${claim.claimNumber} reopened`,
+    message: `Your claim ${claim.claimNumber} has been reopened for further review.${reason ? ` Reason: ${reason}` : ""}`,
+    to: await getNotificationRecipients(claim.id),
+  });
+  res.json({ ...updated, queueBucket: computeQueueBucket(updated) });
+});
+
 module.exports = {
   listClaims, listQueues,
   getClaim, getRequiredDocuments, getLinkedClaims,
@@ -581,5 +626,5 @@ module.exports = {
   validateClaim, sendReminder, resubmitIntimation,
   updateRegistration, submitToInsurer,
   updateAssessment, updateCoverageItems, addRemark,
-  insurerDecision, updatePayment, closeClaim, closeDeficient,
+  insurerDecision, updatePayment, closeClaim, closeDeficient, reopenClaim,
 };

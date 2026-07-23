@@ -6,6 +6,11 @@ export const MEDICAL_SUB_COVERS = [
   "Ambulance Service (Not applicable for OPD)", "Pharmacy", "Miscellaneous Expenses",
 ];
 
+// Point 5 — only coverage names listed here get a sub-cover dropdown at all.
+export const SUBCOVERS_BY_COVERAGE = {
+  "Medical Expenses": MEDICAL_SUB_COVERS,
+};
+
 // Point 3: Non-Medical retired — Travel absorbs its covers + "Assistance".
 export const FALLBACK_COVER_NAMES = {
   MEDICAL: ["Medical Evacuation", "Medical Expenses", "Repatriation of Mortal Remains", "Dental Treatment"],

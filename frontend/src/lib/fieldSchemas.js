@@ -1,22 +1,18 @@
-import { REGIONS } from "./catalog";
-
-// Point 6: Details of Loss now comes FIRST — Date of Loss is the very
-// first thing the customer sees, front-page, before anything else.
-// Point 11: everything AFTER Details of Loss is now source:"agent" instead
-// of "customer" — the customer journey ends at Details of Loss; the Agent
-// fills in Claimant/Communication/Airline/Investigator/Document Details
-// after the claim is intimated. Customers still see these read-only.
+// Point 3 (this round): the shared front-page "Details of Loss" block
+// (Country/City/Zipcode/Region/Description) is REMOVED from the claim-level
+// Intimation form entirely. Only Date of Loss stays here — a single shared
+// field used for the policy-validity check and to seed each coverage's own
+// exchange-rate date. Country/City/Zipcode/Region/Description are now
+// captured PER COVERAGE, by the Agent, inside each coverage row's Details
+// panel (see components/CoverageItemsEditor.jsx's LOSS_DETAIL_FIELDS) —
+// since 5 coverages on one claim can genuinely have 5 different loss
+// locations/descriptions, one shared set of fields was wrong.
 export const INTIMATION_SCHEMA = [
   {
     title: "Details of Loss",
     fields: [
       { id: "dateOfLoss", label: "Date of Loss", type: "date", source: "customer", req: "*" },
       { id: "timeOfLoss", label: "Time of Loss", type: "time", source: "customer" },
-      { id: "countryOfLoss", label: "Country of Loss", type: "text", source: "customer", req: "*" },
-      { id: "cityOfLoss", label: "City", type: "text", source: "customer", req: "*" }, // point 9
-      { id: "zipcode", label: "Zipcode", type: "text", source: "customer", req: "*" }, // point 9 (renamed from Pincode)
-      { id: "regionOfLoss", label: "Region of Loss", type: "select", source: "customer", req: "*", options: REGIONS }, // point 10
-      { id: "descriptionOfLoss", label: "Detailed Description of Claim", type: "textarea", source: "customer", req: "*" }, // point 13
     ],
   },
   {

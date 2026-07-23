@@ -18,7 +18,7 @@ const ROLE_BADGE = {
 // Point 22: no delete anywhere in this component — documents are permanent
 // once uploaded. Re-uploading the same document type is fully allowed and
 // just adds another row (see the version history note below the table).
-export default function DocumentUpload({ claimId, canUpload = true }) {
+export default function DocumentUpload({ claimId, canUpload = true, coverageItems = [] }) {
   const [docs, setDocs] = useState([]);
   const [required, setRequired] = useState({ coverageNames: [], documents: [] });
   const [docType, setDocType] = useState("");
@@ -70,7 +70,35 @@ export default function DocumentUpload({ claimId, canUpload = true }) {
   }, {});
 
   return (
-    <Card
+    <>
+      {coverageItems.length > 0 && (
+        <Card title="Loss Details by Coverage" subtitle="For context while uploading — as filled in at intimation">
+          {coverageItems.map((it, i) => {
+            const d = it.detail || {};
+            const hasAny = d.dateOfLoss || d.countryOfLoss || d.cityOfLoss || d.zipcode || d.regionOfLoss || d.descriptionOfLoss;
+            return (
+              <div key={i} style={{ padding: "10px 0", borderBottom: i < coverageItems.length - 1 ? "1px solid var(--line)" : "none" }}>
+                <div style={{ fontWeight: 700, fontSize: 12.5, marginBottom: 6 }}>
+                  {it.coverageName}{it.subCoverName ? ` — ${it.subCoverName}` : ""}
+                </div>
+                {hasAny ? (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 16, fontSize: 12, color: "var(--muted)" }}>
+                    {d.dateOfLoss && <span><strong style={{ color: "var(--ink)" }}>Date:</strong> {d.dateOfLoss}</span>}
+                    {d.countryOfLoss && <span><strong style={{ color: "var(--ink)" }}>Country:</strong> {d.countryOfLoss}</span>}
+                    {d.cityOfLoss && <span><strong style={{ color: "var(--ink)" }}>City:</strong> {d.cityOfLoss}</span>}
+                    {d.zipcode && <span><strong style={{ color: "var(--ink)" }}>Zipcode:</strong> {d.zipcode}</span>}
+                    {d.regionOfLoss && <span><strong style={{ color: "var(--ink)" }}>Region:</strong> {d.regionOfLoss}</span>}
+                    {d.descriptionOfLoss && <span style={{ flexBasis: "100%" }}><strong style={{ color: "var(--ink)" }}>Description:</strong> {d.descriptionOfLoss}</span>}
+                  </div>
+                ) : (
+                  <span style={{ fontSize: 12, color: "var(--danger)" }}>No Loss Details filled in for this coverage yet — see the Coverage Items tab.</span>
+                )}
+              </div>
+            );
+          })}
+        </Card>
+      )}
+      <Card
       title="Documents"
       subtitle={
         required.coverageNames.length > 0
@@ -144,5 +172,6 @@ export default function DocumentUpload({ claimId, canUpload = true }) {
         ))
       )}
     </Card>
+    </>
   );
 }

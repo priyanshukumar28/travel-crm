@@ -14,9 +14,6 @@ enum UserRole {
   SUPER_ADMIN
 }
 
-// Point 3: NON_MEDICAL kept in the enum only so we never need a destructive
-// migration on old rows — it is no longer offered anywhere in the UI.
-// Travel now absorbs those cover names, plus "Assistance".
 enum ClaimCategory {
   MEDICAL
   NON_MEDICAL
@@ -194,7 +191,7 @@ model InsuredMember {
 model Claim {
   id                String      @id @default(cuid())
   claimNumber       String      @unique
-  parentClaimNumber String      // Point 2: multiple claims from one initiation share this
+  parentClaimNumber String
   policyId          String
   policy            Policy      @relation(fields: [policyId], references: [id])
 
@@ -212,8 +209,6 @@ model Claim {
   insurerClaimIntimationNo   String?
   insurerClaimRegistrationNo String?
 
-  // Point 4/5/7: each item now also carries currency + computed USD/INR +
-  // the exchange rate actually used (pinned to Date of Loss).
   coverageItems Json @default("[]")
 
   intimationData   Json @default("{}")
@@ -223,10 +218,13 @@ model Claim {
 
   deficiencyReason String?
 
-  // Point 12/14/15: TAT/escalation + queue bucketing state.
   deficiencyReminderCount Int       @default(0)
   lastReminderAt          DateTime?
   deficiencyRaisedAt      DateTime?
+
+  // Point 4 — reopen provision, Agent-controlled only.
+  reopenedAt  DateTime?
+  reopenCount Int       @default(0)
 
   activityLogs  ActivityLog[]
   documents     Document[]
@@ -263,9 +261,6 @@ model Document {
   mimeType       String
   sizeBytes      Int
   createdAt      DateTime   @default(now())
-  // Point 22: no delete field/relation removed here on purpose — documents
-  // are permanent once uploaded; re-uploading the same docType is allowed
-  // and simply adds another row.
 }
 
 model Notification {

@@ -59,6 +59,16 @@ const MEDICAL_SUB_COVERS = [
   "Ambulance Service (Not applicable for OPD)", "Pharmacy", "Miscellaneous Expenses",
 ];
 
+// Point 5 — dynamic sub-cover: ONLY coverage names listed here get a
+// sub-cover dropdown at all. "Medical Expenses" is the only coverage with
+// real sub-covers per the client's sub-limit sheet; Medical Evacuation,
+// Repatriation of Mortal Remains, Dental Treatment and every Travel/PA
+// coverage have none, so no sub-cover field is shown for them anywhere in
+// the app (Coverage Items editor checks this map, not just category).
+const SUBCOVERS_BY_COVERAGE = {
+  "Medical Expenses": MEDICAL_SUB_COVERS,
+};
+
 const PLAN_SUBLIMITS = {
   "Bronze 25": ["USD 1500 Per Day up to 30 Days", "USD 1500", "USD 3000 Per Day up to 7 Days", "USD 12500 for surgical treatment expense, +25% sublimit for Anesthetist services", "USD 125 Per Day up to 10 visits", "Up to USD 750", "Up to USD 500", "Up to USD 2000", "Up to USD 500"],
   "Bronze 50": ["USD 1500 Per Day up to 30 Days", "USD 1500", "USD 3000 Per Day up to 7 Days", "USD 12500 for surgical treatment expense, +25% sublimit for Anesthetist services", "USD 125 Per Day up to 10 visits", "Up to USD 750", "Up to USD 500", "Up to USD 2000", "Up to USD 500"],
@@ -94,7 +104,7 @@ const REGIONS = ["Asia", "Middle East", "Africa", "USA and Canada", "Australia a
 const { COUNTRIES, CURRENCY_BY_COUNTRY, CURRENCIES } = require("./countryCurrency");
 
 module.exports = {
-  COVER_NAMES, HARD_LIMIT_COVERAGES, DOCUMENT_REQUIREMENTS, MEDICAL_SUB_COVERS,
+  COVER_NAMES, HARD_LIMIT_COVERAGES, DOCUMENT_REQUIREMENTS, MEDICAL_SUB_COVERS, SUBCOVERS_BY_COVERAGE,
   PLAN_SUBLIMITS, PLAN_OVERALL_SI, SALES_DATA_FIELDS, REGIONS,
   COUNTRIES, CURRENCIES, CURRENCY_BY_COUNTRY,
 };

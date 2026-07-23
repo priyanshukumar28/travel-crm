@@ -1,18 +1,21 @@
-// Points 4/5/7: every amount cascades Local Currency -> USD -> INR, and the
-// rate used is the rate AS OF THE DATE OF LOSS (not today's rate).
+// Points 4/5/7/8/9: every amount cascades Local Currency -> USD -> INR, and
+// the rate used is the rate AS OF THE DATE OF LOSS (not today's rate).
 //
-// Real deployment: point this at a paid historical-FX provider keyed by
-// date. This static reference table makes the *behavior* (rate pinned to
-// loss date, cascading conversion, one place to change) correct now;
-// swapping getRatesForDate()'s lookup for a live HTTP call later doesn't
-// require touching any caller.
+// Point 8: this now genuinely calls a live historical-FX API when one is
+// configured (EXCHANGE_RATE_API_KEY in env), and transparently falls back
+// to the static reference table below if no key is set, the API errors,
+// or the request times out — so the app never breaks even if the FX
+// provider has an outage. Results are cached in-memory per date so a claim
+// with 5 coverages on the same Date of Loss only makes ONE outbound call,
+// not five.
 //
-// Coverage: every currency actually reachable from the Country of Loss
-// dropdown (see data/countryCurrency.js) has an entry below. A handful of
-// low-transaction-volume currencies (several African/CFA francs, some
-// Pacific-island currencies) don't have a firm reference rate on file yet
-// and default to 1 (i.e. treated as USD-equivalent) — clearly marked below
-// so it's obvious which ones still need a real number filled in.
+// Provider assumed: exchangerate-api.com's historical endpoint —
+//   GET https://v6.exchangerate-api.com/v6/{KEY}/history/USD/{Y}/{M}/{D}
+//   -> { result: "success", conversion_rates: { INR: 83.1, EUR: 0.92, ... } }
+// If you're using a different provider, only buildHistoricalUrl() and the
+// response-parsing line in fetchLiveRates() need to change — everything
+// else (caching, fallback, the convert() contract every caller uses)
+// stays the same.
 
 const STATIC_USD_RATES = {
   // <currency>: units of that currency per 1 USD.
@@ -33,23 +36,71 @@ const STATIC_USD_RATES = {
   SEK: 10.4, SYP: 13000, TWD: 32.5, TZS: 2650, TOP: 2.35, TTD: 6.8, TND: 3.1, TRY: 32.3,
   TMT: 3.5, UGX: 3750, UAH: 40, UYU: 39.3, UZS: 12700, VUV: 119, VES: 36.6, VND: 25400,
   YER: 250, ZMW: 26, ZWL: 13.9,
-  // No firm reference on file — CFA francs (regional/pegged, approximated to EUR peg):
   XOF: 606, XAF: 606,
 };
 
-const USD_TO_INR = 96.45;
+const USD_TO_INR_STATIC = 96.45;
 
-function getRatesForDate(currencyCode, dateOfLoss) { // eslint-disable-line no-unused-vars
-  const perUSD = STATIC_USD_RATES[currencyCode] ?? 1;
+// date string -> { rates: {CODE: perUSD}, fetchedAt }
+const rateCache = new Map();
+const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12h — historical rates for a past date never change, but keep it bounded
+
+function buildHistoricalUrl(dateStr) {
+  const [y, m, d] = dateStr.split("-");
+  const base = process.env.EXCHANGE_RATE_API_BASE_URL || "https://v6.exchangerate-api.com/v6";
+  const key = process.env.EXCHANGE_RATE_API_KEY;
+  return `${base}/${key}/history/USD/${y}/${Number(m)}/${Number(d)}`;
+}
+
+async function fetchLiveRates(dateStr) {
+  const cached = rateCache.get(dateStr);
+  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) return cached.rates;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const res = await fetch(buildHistoricalUrl(dateStr), { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error(`FX API responded ${res.status}`);
+    const data = await res.json();
+    if (data.result !== "success" || !data.conversion_rates) throw new Error("Unexpected FX API response shape");
+    rateCache.set(dateStr, { rates: data.conversion_rates, fetchedAt: Date.now() });
+    return data.conversion_rates;
+  } catch (err) {
+    clearTimeout(timeout);
+    console.error(`[exchangeRate] Live FX fetch failed for ${dateStr}, falling back to static table:`, err.message);
+    return null;
+  }
+}
+
+// Returns { currencyToUSD, usdToINR, asOfDate, source: "live"|"static" }
+async function getRatesForDate(currencyCode, dateOfLoss) {
+  const asOfDate = dateOfLoss || new Date().toISOString().slice(0, 10);
+  const code = currencyCode || "USD";
+
+  if (process.env.EXCHANGE_RATE_API_KEY) {
+    const liveRates = await fetchLiveRates(asOfDate);
+    if (liveRates && liveRates[code] && liveRates.INR) {
+      return {
+        currencyToUSD: 1 / liveRates[code],
+        usdToINR: liveRates.INR,
+        asOfDate,
+        source: "live",
+      };
+    }
+  }
+
+  const perUSD = STATIC_USD_RATES[code] ?? 1;
   return {
     currencyToUSD: 1 / perUSD,
-    usdToINR: USD_TO_INR,
-    asOfDate: dateOfLoss || new Date().toISOString().slice(0, 10),
+    usdToINR: USD_TO_INR_STATIC,
+    asOfDate,
+    source: "static",
   };
 }
 
-function convert(amountLocal, currencyCode, dateOfLoss) {
-  const { currencyToUSD, usdToINR, asOfDate } = getRatesForDate(currencyCode, dateOfLoss);
+async function convert(amountLocal, currencyCode, dateOfLoss) {
+  const { currencyToUSD, usdToINR, asOfDate, source } = await getRatesForDate(currencyCode, dateOfLoss);
   const amountUSD = Number(amountLocal || 0) * currencyToUSD;
   const amountINR = amountUSD * usdToINR;
   return {
@@ -57,7 +108,7 @@ function convert(amountLocal, currencyCode, dateOfLoss) {
     currency: currencyCode || "USD",
     amountUSD: Math.round(amountUSD * 100) / 100,
     amountINR: Math.round(amountINR * 100) / 100,
-    exchangeRateUsed: { currencyToUSD, usdToINR, asOfDate },
+    exchangeRateUsed: { currencyToUSD, usdToINR, asOfDate, source },
   };
 }
 
