@@ -1,20 +1,10 @@
-// Point 3 (this round): the shared front-page "Details of Loss" block
-// (Country/City/Zipcode/Region/Description) is REMOVED from the claim-level
-// Intimation form entirely. Only Date of Loss stays here — a single shared
-// field used for the policy-validity check and to seed each coverage's own
-// exchange-rate date. Country/City/Zipcode/Region/Description are now
-// captured PER COVERAGE, by the Agent, inside each coverage row's Details
-// panel (see components/CoverageItemsEditor.jsx's LOSS_DETAIL_FIELDS) —
+// Point 3: the shared front-page "Details of Loss" block is REMOVED from the
+// claim-level Intimation form entirely — Date of Loss and all other loss
+// details are captured PER COVERAGE, by the Agent, inside each coverage row's
+// Details panel (see components/CoverageItemsEditor.jsx's LOSS_DETAIL_FIELDS),
 // since 5 coverages on one claim can genuinely have 5 different loss
-// locations/descriptions, one shared set of fields was wrong.
+// dates/locations/descriptions, so one shared set of fields was wrong.
 export const INTIMATION_SCHEMA = [
-  {
-    title: "Details of Loss",
-    fields: [
-      { id: "dateOfLoss", label: "Date of Loss", type: "date", source: "customer", req: "*" },
-      { id: "timeOfLoss", label: "Time of Loss", type: "time", source: "customer" },
-    ],
-  },
   {
     title: "Policy Details",
     fields: [
