@@ -59,6 +59,21 @@ const reserveAnalysisExport = asyncHandler(async (req, res) => {
   res.send(csv);
 });
 
+function fmtDate(v) {
+  if (!v) return "";
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return "";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}-${mm}-${d.getFullYear()}`;
+}
+function fmtTime(v) {
+  if (!v) return "";
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return "";
+  return d.toTimeString().slice(0, 5);
+}
+
 function ageInDays(from, to) {
   if (!from) return "";
   const ms = (to || new Date()) - new Date(from);
@@ -134,6 +149,7 @@ const misExport = asyncHandler(async (req, res) => {
     return {
       srNo: index + 1,
       dateOfRegistration: registrationDate,
+      registrationTime: registrationDate, // point 3 — same timestamp, formatted as time in the column below
       reopenDate: "", // not tracked — no "reopen" concept in this system yet
       year: new Date(registrationDate).getFullYear(),
       registrationMonth: new Date(registrationDate).toLocaleString("en-US", { month: "long" }),
@@ -153,15 +169,15 @@ const misExport = asyncHandler(async (req, res) => {
       dob: firstMember?.dob || "",
       age,
       ageGroup: ageGroup(age),
-      typeOfLoss: c.claimCategory,
+      typeOfLoss: firstItem.coverageName || c.claimCategory, // point 4: benefit name, not category
       diagnosis: c.intimationData?.descriptionOfLoss || "",
       insuredLocationIndia: c.policy.countryOfResidence || "",
       insuredContactNumber: c.intimationData?.commContact || c.policy.owner?.phone || "",
       placeOfLoss: c.intimationData?.cityOfLoss || "",
       countryOfLoss: c.intimationData?.countryOfLoss || "",
       regionOfLoss: c.intimationData?.regionOfLoss || "",
-      alarmCenter: "", // not tracked
-      alarmCenterRefNo: "", // not tracked
+      alarmCenter: firstItem.detail?.alarmCenterName || "", // point 6
+      alarmCenterRefNo: firstItem.detail?.alarmCenterRefNo || "", // point 6
       dateOfLoss: c.intimationData?.dateOfLoss || "",
       initialReserveUSD: sumItems(c.coverageItems, "amountUSD"),
       initialReserveINR: sumItems(c.coverageItems, "amountINR"),
@@ -178,23 +194,24 @@ const misExport = asyncHandler(async (req, res) => {
       gopPlacedAmount: sumItems(c.coverageItems, "payableAmount"),
       gopPlacedDate: firstItem.gopIssueDate || "",
       finalReserveINR: sumItems(c.coverageItems, "amountINR"),
-      billToInsurer: c.paymentData?.finalPayableAmount || "",
-      fundsReceivedDate: "", // not tracked — single UTR field only, no separate receipt-from-insurer date yet
-      utr1: c.paymentData?.utrNumber || "",
-      amount1: c.paymentData?.finalPayableAmount || "",
-      paidToProviderDate: "", // not tracked — see note above
-      utr2: c.paymentData?.utrNumber || "",
-      amount2: c.paymentData?.finalPayableAmount || "",
-      providerPaidToHospitalDate: "", // not tracked
-      utr3: c.paymentData?.utrNumber || "",
-      paymentConfirmedFromHospital: c.status === "PAYMENT_PROCESSED" ? "Yes" : "No",
+      billToInsurer: c.paymentData?.billToInsurer || "",
+      fundsReceivedDate: c.paymentData?.fundsReceivedDate || "",
+      utr1: c.paymentData?.insurerUtr || "",
+      amount1: c.paymentData?.aaAmount || "",
+      paidToProviderDate: c.paymentData?.aaPaidToProviderDate || "",
+      utr2: c.paymentData?.aaUtr || "",
+      amount2: c.paymentData?.spAmount || "",
+      providerPaidToHospitalDate: c.paymentData?.spPaidToHospitalDate || "",
+      utr3: c.paymentData?.spUtr || "",
+      paymentConfirmedFromHospital: c.paymentData?.paymentConfirmedFromHospital || (c.status === "PAYMENT_PROCESSED" ? "Yes" : "No"),
     };
   });
 
   const csv = toCsv(rows, [
     { label: "Sr. No.", value: (r) => r.srNo },
-    { label: "Date Of Registration", value: (r) => r.dateOfRegistration },
-    { label: "Reopen Date", value: (r) => r.reopenDate },
+    { label: "Date Of Registration", value: (r) => fmtDate(r.dateOfRegistration) },
+    { label: "Registration Time", value: (r) => fmtTime(r.registrationTime) },
+    { label: "Reopen Date", value: (r) => fmtDate(r.reopenDate) },
     { label: "Year", value: (r) => r.year },
     { label: "Registration Month", value: (r) => r.registrationMonth },
     { label: "Ageing", value: (r) => r.ageing },
@@ -204,48 +221,48 @@ const misExport = asyncHandler(async (req, res) => {
     { label: "INSURED'S NAME", value: (r) => r.insuredName },
     { label: "Name of the Corporate", value: (r) => r.corporateName },
     { label: "Sum Insured", value: (r) => r.sumInsured },
-    { label: "Date of  Issuance", value: (r) => r.dateOfIssuance },
-    { label: "Date of  Inception", value: (r) => r.dateOfInception },
-    { label: "Date of  Expiry", value: (r) => r.dateOfExpiry },
+    { label: "Date of  Issuance", value: (r) => fmtDate(r.dateOfIssuance) },
+    { label: "Date of  Inception", value: (r) => fmtDate(r.dateOfInception) },
+    { label: "Date of  Expiry", value: (r) => fmtDate(r.dateOfExpiry) },
     { label: "GEOGRAPHICAL PLAN", value: (r) => r.geoPlan },
     { label: "Passport No", value: (r) => r.passportNo },
     { label: "Claimant - Gender", value: (r) => r.gender },
-    { label: "Claimant - DOB", value: (r) => r.dob },
+    { label: "Claimant - DOB", value: (r) => fmtDate(r.dob) },
     { label: "AGE", value: (r) => r.age },
     { label: "Age Group", value: (r) => r.ageGroup },
     { label: "Type of loss", value: (r) => r.typeOfLoss },
     { label: "Diagnosis (Description)", value: (r) => r.diagnosis },
     { label: "Insured Location  - (India)", value: (r) => r.insuredLocationIndia },
     { label: "Insured Contact Number", value: (r) => r.insuredContactNumber },
-    { label: "Place of Loss", value: (r) => r.placeOfLoss },
+    { label: "City of Loss", value: (r) => r.placeOfLoss },
     { label: "Country of Loss", value: (r) => r.countryOfLoss },
     { label: "Region of Loss", value: (r) => r.regionOfLoss },
     { label: "Alarm Center", value: (r) => r.alarmCenter },
     { label: "Alarm Center ref no.", value: (r) => r.alarmCenterRefNo },
-    { label: "Date of Loss", value: (r) => r.dateOfLoss },
+    { label: "Date of Loss", value: (r) => fmtDate(r.dateOfLoss) },
     { label: "Initial Reserve (USD)", value: (r) => r.initialReserveUSD },
     { label: "Initial Reserve (INR)", value: (r) => r.initialReserveINR },
-    { label: "Admission Date", value: (r) => r.admissionDate },
-    { label: "Discharge Date", value: (r) => r.dischargeDate },
+    { label: "Admission Date", value: (r) => fmtDate(r.admissionDate) },
+    { label: "Discharge Date", value: (r) => fmtDate(r.dischargeDate) },
     { label: "Claim Type", value: (r) => r.claimType },
     { label: "Status", value: (r) => r.status },
     { label: "Pending With", value: (r) => r.pendingWith },
     { label: "Deficient status", value: (r) => r.deficientStatus },
     { label: "Deficient status", value: (r) => r.deficientStatusReason },
-    { label: "Last Follow Up Date", value: (r) => r.lastFollowUpDate },
+    { label: "Last Follow Up Date", value: (r) => fmtDate(r.lastFollowUpDate) },
     { label: "Approved Under ", value: (r) => r.approvedUnder },
     { label: "GOP Currency", value: (r) => r.gopCurrency },
     { label: "GOP Placed Amount", value: (r) => r.gopPlacedAmount },
-    { label: "GOP Placed Date", value: (r) => r.gopPlacedDate },
+    { label: "GOP Placed Date", value: (r) => fmtDate(r.gopPlacedDate) },
     { label: "Final Reserve in INR (GOP)", value: (r) => r.finalReserveINR },
     { label: "Bill to Insurer", value: (r) => r.billToInsurer },
-    { label: "Funds receive from insurer (Date)", value: (r) => r.fundsReceivedDate },
+    { label: "Funds receive from insurer (Date)", value: (r) => fmtDate(r.fundsReceivedDate) },
     { label: "UTR Details", value: (r) => r.utr1 },
     { label: "Amount", value: (r) => r.amount1 },
-    { label: "Across Assist Paid to Provider (Date)", value: (r) => r.paidToProviderDate },
+    { label: "Across Assist Paid to Provider (Date)", value: (r) => fmtDate(r.paidToProviderDate) },
     { label: "UTR Details", value: (r) => r.utr2 },
     { label: "Amount", value: (r) => r.amount2 },
-    { label: "Provider Paid to hospital ( Date)", value: (r) => r.providerPaidToHospitalDate },
+    { label: "Provider Paid to hospital ( Date)", value: (r) => fmtDate(r.providerPaidToHospitalDate) },
     { label: "UTR Details ", value: (r) => r.utr3 },
     { label: "Payment confirmation done from Hospital", value: (r) => r.paymentConfirmedFromHospital },
   ]);

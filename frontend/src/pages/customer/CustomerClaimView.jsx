@@ -3,8 +3,9 @@ import { useParams, useNavigate } from "react-router-dom";
 import client from "../../api/client";
 import DocumentUpload from "../../components/DocumentUpload";
 import LinkedClaims from "../../components/LinkedClaims";
+import CoverageItemsEditor from "../../components/CoverageItemsEditor";
 import { INTIMATION_SCHEMA } from "../../lib/fieldSchemas";
-import { CATEGORY_LABELS } from "../../lib/catalog";
+import { CATEGORY_LABELS, FALLBACK_COVER_NAMES } from "../../lib/catalog";
 import {
   Card, InfoTile, PrimaryBtn, SecondaryBtn, EmptyNote,
   StageStepper, SchemaGroup, StatusBadge, memberNamesForClaim, Badge,
@@ -28,6 +29,8 @@ export default function CustomerClaimView() {
   const setField = (fid, value) => {
     setClaim((c) => ({ ...c, intimationData: { ...c.intimationData, [fid]: value } }));
   };
+  const setCoverageItems = (items) => setClaim((c) => ({ ...c, coverageItems: items }));
+  const saveCoverageItems = async () => client.patch(`/claims/${id}/coverage-items`, { coverageItems: claim.coverageItems });
 
   const saveIntimation = async () => {
     setSaving(true);
@@ -87,7 +90,20 @@ export default function CustomerClaimView() {
 
         <StageStepper stage={claim.stage} />
 
-        {claim.coverageItems?.length > 0 && (
+        {claim.coverageItems?.length > 0 && claim.stage === "INTIMATION" && (
+          <Card title="Your Coverages & Loss Details" subtitle="Loss Details stay editable while your claim is with our validation team — click 'Loss Details' on each coverage">
+            <CoverageItemsEditor
+              items={claim.coverageItems}
+              onChange={setCoverageItems}
+              mode="select"
+              coverNameCatalog={FALLBACK_COVER_NAMES}
+            />
+            <div className="action-bar" style={{ marginTop: 12 }}>
+              <SecondaryBtn onClick={saveCoverageItems}>Save Coverage / Loss Details</SecondaryBtn>
+            </div>
+          </Card>
+        )}
+        {claim.coverageItems?.length > 0 && claim.stage !== "INTIMATION" && (
           <div className="grid-2" style={{ marginBottom: 16 }}>
             {claim.coverageItems.map((it, i) => (
               <InfoTile

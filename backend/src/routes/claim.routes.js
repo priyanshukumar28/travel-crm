@@ -8,7 +8,7 @@ const {
   validateClaim, sendReminder, resubmitIntimation,
   updateRegistration, submitToInsurer,
   updateAssessment, updateCoverageItems, addRemark,
-  insurerDecision, updatePayment, closeClaim, closeDeficient, reopenClaim,
+  insurerDecision, updatePayment, closeClaim, closeDeficient, reopenClaim, updateSecondaryStatus,
 } = require("../controllers/claim.controller");
 
 const router = express.Router();
@@ -35,11 +35,12 @@ router.post("/:id/submit-to-insurer", authorizeRoles("AGENT", "SUPER_ADMIN"), su
 router.patch("/:id/assessment", authorizeRoles("INSURER", "SUPER_ADMIN"), updateAssessment);
 router.post("/:id/decision", authorizeRoles("INSURER", "SUPER_ADMIN"), insurerDecision);
 
-router.patch("/:id/coverage-items", authorizeRoles("AGENT", "INSURER", "SUPER_ADMIN"), updateCoverageItems);
+router.patch("/:id/coverage-items", authorizeRoles("CUSTOMER", "AGENT", "INSURER", "SUPER_ADMIN"), updateCoverageItems);
 router.post("/:id/remarks", authorizeRoles("AGENT", "INSURER", "SUPER_ADMIN"), addRemark);
 
 router.patch("/:id/payment", authorizeRoles("AGENT", "SUPER_ADMIN"), updatePayment);
 router.post("/:id/close", authorizeRoles("AGENT", "SUPER_ADMIN"), closeClaim);
 router.post("/:id/reopen", authorizeRoles("AGENT", "SUPER_ADMIN"), reopenClaim); // point 4
+router.patch("/:id/secondary-status", authorizeRoles("AGENT", "SUPER_ADMIN"), updateSecondaryStatus);
 
 module.exports = router;

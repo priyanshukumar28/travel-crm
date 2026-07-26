@@ -28,6 +28,7 @@ const uploadDocument = asyncHandler(async (req, res) => {
       uploadedByRole: req.user.role,
       stage: claim.stage,
       docType: req.body.docType || "Others",
+      coverageName: req.body.coverageName || null,
       fileName: req.file.originalname,
       url: result.secure_url,
       publicId: result.public_id,
@@ -63,7 +64,7 @@ const listDocuments = asyncHandler(async (req, res) => {
 
   res.json(
     docs.map((d) => ({
-      id: d.id, fileName: d.fileName, docType: d.docType, stage: d.stage, mimeType: d.mimeType,
+      id: d.id, fileName: d.fileName, docType: d.docType, coverageName: d.coverageName, stage: d.stage, mimeType: d.mimeType,
       sizeBytes: d.sizeBytes, url: d.url, uploadedByRole: d.uploadedByRole, uploadedByName: d.uploadedBy.name, createdAt: d.createdAt,
     }))
   );

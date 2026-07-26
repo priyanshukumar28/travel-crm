@@ -108,3 +108,24 @@ module.exports = {
   PLAN_SUBLIMITS, PLAN_OVERALL_SI, SALES_DATA_FIELDS, REGIONS,
   COUNTRIES, CURRENCIES, CURRENCY_BY_COUNTRY,
 };
+
+// Agent-only secondary status options, exact list from client's Excel.
+const SECONDARY_STATUS_OPTIONS = {
+  Cashless: [
+    "Case Registered", "Awaiting ROI", "NOC Reminder", "NOC Final Reminder", "Closed - Under NOC",
+    "Initial Deficiency Letter", "First Deficiency Letter", "Second Deficiency Letter",
+    "Awaiting Medical Record", "Awaiting Past Medical History", "Awaiting Additional Medical Records",
+    "Awaiting Final Invoice", "Awaiting Approval from Insurer", "Under Investigation",
+    "Awaiting Proposal Form", "GOP Placed", "Awaiting Debit Note from Local Partner",
+    "Awaiting Funds from Insurer", "Awaiting Payment to Local Partner",
+    "Awaiting Proof of Payment from Local Partner", "Paid and Closed", "Repudiated", "Closed - Under Deficiency",
+  ],
+  Reimbursement: [
+    "Case Registered", "NOC Reminder", "NOC Final Reminder", "Closed - Under NOC",
+    "Initial Deficiency Letter", "First Deficiency Letter", "Second Deficiency Letter", "Closed - Under Deficiency",
+    "Awaiting Passport Copy", "Awaiting Cancelled Cheque", "Awaiting Approval from SBI",
+    "Awaiting Proposal Form", "Awaiting CKYC Form", "Awaiting Funds from SBI",
+    "Paid and Closed", "Repudiated", "Claim Withdrawn",
+  ],
+};
+module.exports.SECONDARY_STATUS_OPTIONS = SECONDARY_STATUS_OPTIONS;

@@ -5,7 +5,7 @@ import DocumentUpload from "../../components/DocumentUpload";
 import LinkedClaims from "../../components/LinkedClaims";
 import CoverageItemsEditor from "../../components/CoverageItemsEditor";
 import { INTIMATION_SCHEMA, REGISTRATION_SCHEMA } from "../../lib/fieldSchemas";
-import { FALLBACK_COVER_NAMES, CATEGORY_LABELS } from "../../lib/catalog";
+import { FALLBACK_COVER_NAMES, CATEGORY_LABELS, SECONDARY_STATUS_OPTIONS } from "../../lib/catalog";
 import {
   Card, InfoTile, PrimaryBtn, SecondaryBtn, DangerBtn, EmptyNote,
   StageStepper, SchemaGroup, StatusBadge, FieldRow, Badge, memberNamesForClaim,
@@ -31,6 +31,9 @@ export default function AgentClaimWorkspace() {
   const [deficiencyReason, setDeficiencyReason] = useState("");
   const [remarkText, setRemarkText] = useState("");
   const [validationErrors, setValidationErrors] = useState([]);
+  const [closeError, setCloseError] = useState("");
+  const [statusClaimType, setStatusClaimType] = useState("Cashless");
+  const [statusValue, setStatusValue] = useState("");
   const navigate = useNavigate();
 
   const load = useCallback(async () => {
@@ -77,7 +80,23 @@ export default function AgentClaimWorkspace() {
     await client.post(`/claims/${id}/submit-to-insurer`);
     await load();
   };
-  const processPayment = async () => { await savePayment(); await client.post(`/claims/${id}/close`); await load(); };
+  const processPayment = async () => {
+    await savePayment();
+    setCloseError("");
+    try {
+      await client.post(`/claims/${id}/close`);
+    } catch (err) {
+      setCloseError(err.response?.data?.message || "Could not close the case.");
+      return;
+    }
+    await load();
+  };
+  const updateSecondaryStatus = async () => {
+    if (!statusValue) return;
+    await client.patch(`/claims/${id}/secondary-status`, { claimType: statusClaimType, status: statusValue });
+    setStatusValue("");
+    await load();
+  };
   const reopenClaim = async () => {
     const reason = window.prompt("Why are you reopening this claim? (shown to the customer)");
     if (reason === null) return; // cancelled
@@ -197,6 +216,35 @@ export default function AgentClaimWorkspace() {
 
         {tab === "TAT & Escalation" && (
           <>
+            <Card title="Secondary Status" subtitle="Agent-only — never shown to Customer or Insurer">
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
+                <div className="field" style={{ maxWidth: 160 }}>
+                  <label className="field-label"><span>Claim Type</span></label>
+                  <select value={statusClaimType} onChange={(e) => { setStatusClaimType(e.target.value); setStatusValue(""); }}>
+                    {Object.keys(SECONDARY_STATUS_OPTIONS).map((t) => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="field" style={{ maxWidth: 260 }}>
+                  <label className="field-label"><span>Status</span></label>
+                  <select value={statusValue} onChange={(e) => setStatusValue(e.target.value)}>
+                    <option value="">Select…</option>
+                    {SECONDARY_STATUS_OPTIONS[statusClaimType].map((s) => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <PrimaryBtn onClick={updateSecondaryStatus} disabled={!statusValue}>Update Status</PrimaryBtn>
+              </div>
+              <InfoTile label="Current Secondary Status" value={claim.secondaryStatus || "Not set"} />
+              {claim.secondaryStatusHistory?.length > 0 && (
+                <table className="data-table" style={{ marginTop: 12 }}>
+                  <thead><tr><th>Claim Type</th><th>Status</th><th>By</th><th>When</th></tr></thead>
+                  <tbody>
+                    {[...claim.secondaryStatusHistory].reverse().map((h, i) => (
+                      <tr key={i}><td>{h.claimType}</td><td>{h.status}</td><td>{h.changedBy}</td><td>{new Date(h.changedAt).toLocaleString()}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </Card>
             <Card title="Queue Status" subtitle="Point 12/15 — TAT/escalation state for this claim">
               <div className="grid-2">
                 <InfoTile label="Current Queue" value={claim.queueBucket} />
@@ -252,12 +300,30 @@ export default function AgentClaimWorkspace() {
                   {claim.status !== "CLOSED" && <PrimaryBtn onClick={processPayment}>Close Case</PrimaryBtn>}
                 </Card>
               ) : (
-                <Card title="Payable Calculation & Payment Processing">
+                <Card title="Payable Calculation & Payment Processing" subtitle="All fields required to close the case — Save keeps partial progress">
+                  <h4 style={{ fontSize: 13, marginBottom: 10 }}>Insurer Payment Details</h4>
                   <div className="grid-2">
-                    <FieldRow field={{ id: "finalPayableAmount", label: "Final Payable Amount", type: "number", source: "insurer" }} value={claim.paymentData?.finalPayableAmount} onChange={setPaymentField} role="INSURER" stage="PAYMENT" />
-                    <FieldRow field={{ id: "utrNumber", label: "UTR Number", type: "text", source: "agent" }} value={claim.paymentData?.utrNumber} onChange={setPaymentField} role="AGENT" stage="PAYMENT" />
-                    <FieldRow field={{ id: "gopIssued", label: "GOP Issued to Provider?", type: "select", options: ["Yes", "No"], source: "agent" }} value={claim.paymentData?.gopIssued} onChange={setPaymentField} role="AGENT" stage="PAYMENT" />
+                    <FieldRow field={{ id: "billToInsurer", label: "Bill to Insurer", type: "number", source: "agent" }} value={claim.paymentData?.billToInsurer} onChange={setPaymentField} role="AGENT" stage="PAYMENT" />
+                    <FieldRow field={{ id: "fundsReceivedDate", label: "Funds Received from Insurer (Date)", type: "date", source: "agent" }} value={claim.paymentData?.fundsReceivedDate} onChange={setPaymentField} role="AGENT" stage="PAYMENT" />
+                    <FieldRow field={{ id: "insurerUtr", label: "UTR Details", type: "text", source: "agent" }} value={claim.paymentData?.insurerUtr} onChange={setPaymentField} role="AGENT" stage="PAYMENT" />
                   </div>
+
+                  <h4 style={{ fontSize: 13, margin: "20px 0 10px" }}>Across Assist Payment Details</h4>
+                  <div className="grid-2">
+                    <FieldRow field={{ id: "aaAmount", label: "Amount", type: "number", source: "agent" }} value={claim.paymentData?.aaAmount} onChange={setPaymentField} role="AGENT" stage="PAYMENT" />
+                    <FieldRow field={{ id: "aaPaidToProviderDate", label: "Across Assist Paid to Provider (Date)", type: "date", source: "agent" }} value={claim.paymentData?.aaPaidToProviderDate} onChange={setPaymentField} role="AGENT" stage="PAYMENT" />
+                    <FieldRow field={{ id: "aaUtr", label: "UTR Details", type: "text", source: "agent" }} value={claim.paymentData?.aaUtr} onChange={setPaymentField} role="AGENT" stage="PAYMENT" />
+                  </div>
+
+                  <h4 style={{ fontSize: 13, margin: "20px 0 10px" }}>Service Provider Details</h4>
+                  <div className="grid-2">
+                    <FieldRow field={{ id: "spAmount", label: "Amount", type: "number", source: "agent" }} value={claim.paymentData?.spAmount} onChange={setPaymentField} role="AGENT" stage="PAYMENT" />
+                    <FieldRow field={{ id: "spPaidToHospitalDate", label: "Provider Paid to Hospital (Date)", type: "date", source: "agent" }} value={claim.paymentData?.spPaidToHospitalDate} onChange={setPaymentField} role="AGENT" stage="PAYMENT" />
+                    <FieldRow field={{ id: "spUtr", label: "UTR Details", type: "text", source: "agent" }} value={claim.paymentData?.spUtr} onChange={setPaymentField} role="AGENT" stage="PAYMENT" />
+                    <FieldRow field={{ id: "paymentConfirmedFromHospital", label: "Payment Confirmation Done from Hospital", type: "select", options: ["Yes", "No"], source: "agent" }} value={claim.paymentData?.paymentConfirmedFromHospital} onChange={setPaymentField} role="AGENT" stage="PAYMENT" />
+                  </div>
+
+                  {closeError && <div className="login-error" style={{ marginTop: 16 }}>{closeError}</div>}
                   <div className="action-bar" style={{ marginTop: 16 }}>
                     <SecondaryBtn onClick={savePayment}>Save</SecondaryBtn>
                     {claim.stage !== "CLOSED" && <PrimaryBtn onClick={processPayment}>Process Payment & Close Case</PrimaryBtn>}

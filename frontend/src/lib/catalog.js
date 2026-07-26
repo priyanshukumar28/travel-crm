@@ -35,3 +35,22 @@ export const CATEGORY_LABELS = { MEDICAL: "Medical", NON_MEDICAL: "Non-Medical",
 
 // Point 23 — region list exactly as given.
 export const REGIONS = ["Asia", "Middle East", "Africa", "USA and Canada", "Australia and New Zealand", "Europe", "United Kingdom", "Southeast Asia"];
+
+export const SECONDARY_STATUS_OPTIONS = {
+  Cashless: [
+    "Case Registered", "Awaiting ROI", "NOC Reminder", "NOC Final Reminder", "Closed - Under NOC",
+    "Initial Deficiency Letter", "First Deficiency Letter", "Second Deficiency Letter",
+    "Awaiting Medical Record", "Awaiting Past Medical History", "Awaiting Additional Medical Records",
+    "Awaiting Final Invoice", "Awaiting Approval from Insurer", "Under Investigation",
+    "Awaiting Proposal Form", "GOP Placed", "Awaiting Debit Note from Local Partner",
+    "Awaiting Funds from Insurer", "Awaiting Payment to Local Partner",
+    "Awaiting Proof of Payment from Local Partner", "Paid and Closed", "Repudiated", "Closed - Under Deficiency",
+  ],
+  Reimbursement: [
+    "Case Registered", "NOC Reminder", "NOC Final Reminder", "Closed - Under NOC",
+    "Initial Deficiency Letter", "First Deficiency Letter", "Second Deficiency Letter", "Closed - Under Deficiency",
+    "Awaiting Passport Copy", "Awaiting Cancelled Cheque", "Awaiting Approval from SBI",
+    "Awaiting Proposal Form", "Awaiting CKYC Form", "Awaiting Funds from SBI",
+    "Paid and Closed", "Repudiated", "Claim Withdrawn",
+  ],
+};

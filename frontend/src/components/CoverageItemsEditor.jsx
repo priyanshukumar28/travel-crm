@@ -24,6 +24,8 @@ const LOSS_DETAIL_FIELDS = [
   { id: "zipcode", label: "Zipcode", type: "text", req: true },
   { id: "regionOfLoss", label: "Region of Loss", type: "select", options: REGIONS, req: true },
   { id: "descriptionOfLoss", label: "Detailed Description of Claim", type: "textarea", req: true, span: 2 },
+  { id: "alarmCenterName", label: "Alarm Center Name", type: "text" },
+  { id: "alarmCenterRefNo", label: "Alarm Center Claim Reference Number", type: "text" },
 ];
 
 // Point 7: category-specific ASSESSMENT fields — these stay Agent/Insurer
@@ -122,8 +124,9 @@ function CoverageRow({
   const catalog = coverNameCatalog?.[item.category] || [];
   const subCovers = SUBCOVERS_BY_COVERAGE[item.coverageName]; // point 5: only present if this coverage genuinely has sub-covers
   const assessmentDetails = mode === "review" ? (ASSESSMENT_DETAIL_FIELDS[item.category] || []) : [];
-  const filledLossFields = LOSS_DETAIL_FIELDS.filter((f) => item.detail?.[f.id]).length;
-  const lossComplete = filledLossFields === LOSS_DETAIL_FIELDS.length;
+  const requiredLossFields = LOSS_DETAIL_FIELDS.filter((f) => f.req);
+  const filledLossFields = requiredLossFields.filter((f) => item.detail?.[f.id]).length;
+  const lossComplete = filledLossFields === requiredLossFields.length;
   const isExpanded = expandedIndex === index;
 
   return (
@@ -190,7 +193,7 @@ function CoverageRow({
                 color: lossComplete ? "var(--success)" : "var(--brand-orange-dark)",
               }}
             >
-              {isExpanded ? "Hide Details" : `${lossComplete ? "✓" : "○"} Loss Details ${filledLossFields}/${LOSS_DETAIL_FIELDS.length}`}
+              {isExpanded ? "Hide Details" : `${lossComplete ? "✓" : "○"} Loss Details ${filledLossFields}/${requiredLossFields.length}`}
             </button>
             {mode === "select" && (
               <button type="button" className="btn btn-secondary" onClick={() => removeItem(index)} style={{ width: "100%", justifyContent: "center", fontSize: 11.5 }}>

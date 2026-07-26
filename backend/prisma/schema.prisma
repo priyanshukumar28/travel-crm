@@ -226,6 +226,10 @@ model Claim {
   reopenedAt  DateTime?
   reopenCount Int       @default(0)
 
+  // Agent-only secondary status — never shown to Customer/Insurer.
+  secondaryStatus        String?
+  secondaryStatusHistory Json    @default("[]")
+
   activityLogs  ActivityLog[]
   documents     Document[]
   notifications Notification[]
@@ -260,6 +264,7 @@ model Document {
   publicId       String
   mimeType       String
   sizeBytes      Int
+  coverageName   String?
   createdAt      DateTime   @default(now())
 }
 

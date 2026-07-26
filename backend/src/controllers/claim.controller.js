@@ -109,7 +109,13 @@ const getClaim = asyncHandler(async (req, res) => {
     });
   }
 
-  res.json({ ...claim, queueBucket: computeQueueBucket(claim) });
+  const isAgentView = ["AGENT", "SUPER_ADMIN"].includes(req.user.role);
+  const { secondaryStatus, secondaryStatusHistory, ...safeClaim } = claim;
+  res.json({
+    ...safeClaim,
+    ...(isAgentView ? { secondaryStatus, secondaryStatusHistory } : {}),
+    queueBucket: computeQueueBucket(claim),
+  });
 });
 
 // GET /api/claims/:id/linked
@@ -462,8 +468,11 @@ const updateAssessment = asyncHandler(async (req, res) => {
 const updateCoverageItems = asyncHandler(async (req, res) => {
   const claim = await prisma.claim.findUnique({ where: { id: req.params.id }, include: { policy: { include: { coverages: true } } } });
   if (!claim) return res.status(404).json({ message: "Claim not found." });
+  if (req.user.role === "CUSTOMER" && claim.policy.ownerId !== req.user.id) {
+    return res.status(403).json({ message: "Not your claim." });
+  }
 
-  const allowedStages = { AGENT: ["INTIMATION", "REGISTRATION"], INSURER: ["ASSESSMENT"], SUPER_ADMIN: ["INTIMATION", "REGISTRATION", "ASSESSMENT"] };
+  const allowedStages = { CUSTOMER: ["INTIMATION"], AGENT: ["INTIMATION", "REGISTRATION"], INSURER: ["ASSESSMENT"], SUPER_ADMIN: ["INTIMATION", "REGISTRATION", "ASSESSMENT"] };
   const allowed = allowedStages[req.user.role];
   if (!allowed || !allowed.includes(claim.stage)) {
     return res.status(403).json({ message: "You cannot edit coverage items at this stage." });
@@ -559,10 +568,24 @@ const updatePayment = asyncHandler(async (req, res) => {
   res.json(updated);
 });
 
+const REQUIRED_PAYMENT_FIELDS = [
+  "billToInsurer", "fundsReceivedDate", "insurerUtr",
+  "aaAmount", "aaPaidToProviderDate", "aaUtr",
+  "spAmount", "spPaidToHospitalDate", "spUtr", "paymentConfirmedFromHospital",
+];
+
 const closeClaim = asyncHandler(async (req, res) => {
   const claim = await prisma.claim.findUnique({ where: { id: req.params.id } });
   if (!claim) return res.status(404).json({ message: "Claim not found." });
   if (claim.stage !== "PAYMENT") return res.status(409).json({ message: "Only claims in the Payment stage can be closed." });
+
+  if (claim.status !== "REJECTED") {
+    const missing = REQUIRED_PAYMENT_FIELDS.filter((f) => !claim.paymentData?.[f]);
+    if (missing.length > 0) {
+      return res.status(400).json({ message: "All payment fields are required before closing the case.", missingFields: missing });
+    }
+  }
+
   const status = claim.status === "REJECTED" ? "CLOSED" : "PAYMENT_PROCESSED";
   const updated = await prisma.claim.update({ where: { id: claim.id }, data: { status, stage: "CLOSED" } });
   await logActivity(claim.id, req.user, claim.status === "REJECTED" ? "Repudiation closed" : "Payment processed — case closed");
@@ -618,6 +641,23 @@ const reopenClaim = asyncHandler(async (req, res) => {
   res.json({ ...updated, queueBucket: computeQueueBucket(updated) });
 });
 
+// PATCH /api/claims/:id/secondary-status — Agent only. Deliberately kept
+// separate from ActivityLog/notifications: never surfaced to Customer or
+// Insurer, only tracked here for the Agent's own operational view.
+const updateSecondaryStatus = asyncHandler(async (req, res) => {
+  const claim = await prisma.claim.findUnique({ where: { id: req.params.id } });
+  if (!claim) return res.status(404).json({ message: "Claim not found." });
+  const { claimType, status } = req.body;
+  if (!claimType || !status) return res.status(400).json({ message: "claimType and status are required." });
+
+  const entry = { claimType, status, changedBy: req.user.name, changedAt: new Date().toISOString() };
+  const updated = await prisma.claim.update({
+    where: { id: claim.id },
+    data: { secondaryStatus: status, secondaryStatusHistory: [...(claim.secondaryStatusHistory || []), entry] },
+  });
+  res.json({ secondaryStatus: updated.secondaryStatus, secondaryStatusHistory: updated.secondaryStatusHistory });
+});
+
 module.exports = {
   listClaims, listQueues,
   getClaim, getRequiredDocuments, getLinkedClaims,
@@ -626,5 +666,5 @@ module.exports = {
   validateClaim, sendReminder, resubmitIntimation,
   updateRegistration, submitToInsurer,
   updateAssessment, updateCoverageItems, addRemark,
-  insurerDecision, updatePayment, closeClaim, closeDeficient, reopenClaim,
+  insurerDecision, updatePayment, closeClaim, closeDeficient, reopenClaim, updateSecondaryStatus,
 };
