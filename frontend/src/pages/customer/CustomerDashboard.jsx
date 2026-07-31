@@ -64,16 +64,25 @@ export default function CustomerDashboard() {
   const missingLossDetails = () => {
     for (const grp of groups) {
       for (const item of grp.coverageItems) {
-        const missing = REQUIRED_LOSS_FIELDS.some((f) => !item.detail?.[f]);
+        const required = item.category === "MEDICAL" ? [...REQUIRED_LOSS_FIELDS, "hospitalClinicName"] : REQUIRED_LOSS_FIELDS;
+        const missing = required.some((f) => !item.detail?.[f]);
         if (missing) return true;
       }
     }
     return false;
   };
 
+  // Point 3: at least one insured member must be selected per claim group —
+  // Claimant Details can't be shown/autofilled otherwise.
+  const missingMembers = () => groups.some((grp) => grp.memberIds.length === 0);
+
   const submitInitiate = async () => {
     if (groups.length === 0) return;
     setError("");
+    if (missingMembers()) {
+      setError("Please select at least one insured member for every claim — Claimant Details are auto-filled from this.");
+      return;
+    }
     if (missingLossDetails()) {
       setError("Please fill in Date, Country, City, Zipcode, Region and Description of Loss for every coverage — click \"Loss Details\" on each row.");
       return;

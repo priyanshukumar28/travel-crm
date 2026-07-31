@@ -4,6 +4,7 @@ import client from "../../api/client";
 import DocumentUpload from "../../components/DocumentUpload";
 import LinkedClaims from "../../components/LinkedClaims";
 import CoverageItemsEditor from "../../components/CoverageItemsEditor";
+import ClaimantDetails from "../../components/ClaimantDetails";
 import { INTIMATION_SCHEMA } from "../../lib/fieldSchemas";
 import { CATEGORY_LABELS, FALLBACK_COVER_NAMES } from "../../lib/catalog";
 import {
@@ -124,7 +125,8 @@ export default function CustomerClaimView() {
 
         {claim.stage === "INTIMATION" ? (
           <>
-            {visibleGroups.map((g, i) => (
+            <ClaimantDetails claim={claim} />
+            {visibleGroups.map((g) => (
               <SchemaGroup
                 key={g.title}
                 group={g}
@@ -132,7 +134,7 @@ export default function CustomerClaimView() {
                 onChange={setField}
                 role="CUSTOMER"
                 stage="INTIMATION"
-                defaultOpen={i < 1}
+                defaultOpen
               />
             ))}
             <div className="action-bar">

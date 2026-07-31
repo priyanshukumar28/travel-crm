@@ -13,7 +13,7 @@ import {
 } from "../../components/ui";
 import { SOURCE_META } from "../../lib/permissions";
 
-const TABS = ["Intimation", "Registration", "Coverage Items", "TAT & Escalation", "Status", "Documents", "Payment", "Activity Log & Remarks"];
+const TABS = ["Intimation", "Registration", "Coverage Items", "Queue", "Status", "Documents", "Payment", "Activity Log & Remarks"];
 const QUEUE_BADGE = {
   "Documents Yet to Receive": { color: "#B5790C", bg: "#FBF0D6" },
   "Under Observation": { color: "#1D4FA0", bg: "#E8EFFB" },
@@ -154,9 +154,9 @@ export default function AgentClaimWorkspace() {
 
         {tab === "Intimation" && (
           <>
-            <ClaimantDetails claim={claim} />
-            {INTIMATION_SCHEMA.map((g, i) => (
-              <SchemaGroup key={g.title} group={g} data={claim.intimationData} onChange={setIntimationField} role="AGENT" stage="INTIMATION" defaultOpen={i < 1} />
+            <ClaimantDetails claim={claim} editable onChangeRelationship={(memberId, rel) => setIntimationField("claimantRelationships", { ...(claim.intimationData?.claimantRelationships || {}), [memberId]: rel })} />
+            {INTIMATION_SCHEMA.map((g) => (
+              <SchemaGroup key={g.title} group={g} data={claim.intimationData} onChange={setIntimationField} role="AGENT" stage="INTIMATION" defaultOpen />
             ))}
             {claim.status === "SUBMITTED_FOR_VALIDATION" && (
               <Card title="First-Level Validation" subtitle="Check policy validity, data completeness, document availability, coverage eligibility & limits">
@@ -215,7 +215,7 @@ export default function AgentClaimWorkspace() {
           </Card>
         )}
 
-        {tab === "TAT & Escalation" && (
+        {tab === "Queue" && (
           <Card title="Queue Status" subtitle="Point 12/15 — TAT/escalation state for this claim">
             <div className="grid-2">
               <InfoTile label="Current Queue" value={claim.queueBucket} />

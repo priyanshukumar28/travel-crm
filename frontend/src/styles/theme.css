@@ -262,7 +262,7 @@ table.data-table tbody tr:last-child td { border-bottom: none; }
   overflow: hidden;
   background: #fff;
 }
-.group + .group { margin-top: 14px; }
+.group + .group, .card + .group, .login-error + .group { margin-top: 22px; }
 .group summary {
   cursor: pointer;
   list-style: none;
@@ -275,8 +275,10 @@ table.data-table tbody tr:last-child td { border-bottom: none; }
   justify-content: space-between;
   align-items: center;
   transition: background 0.15s ease;
+  outline: none;
 }
 .group summary:hover { background: #F3F5F9; }
+.group summary:focus-visible { outline: 2px solid var(--brand-blue); outline-offset: -2px; }
 .group summary::-webkit-details-marker { display: none; }
 .group-body { padding: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 

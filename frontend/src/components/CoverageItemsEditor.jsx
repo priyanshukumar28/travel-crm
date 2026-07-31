@@ -10,11 +10,11 @@ function money(n) {
   return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
-// Point 3/6: Country/City/Zipcode/Region/Description of Loss are per
-// coverage instead of one shared front-page block — but they are still
-// CUSTOMER-filled, at intimation time, same as before. Only Date of Loss
-// is the single shared field (defaults into every row, editable per row if
-// a specific coverage genuinely happened on a different date/place).
+// Point 3/6: Date/Country/City/Zipcode/Region/Description of Loss are all
+// per coverage now — there's no shared claim-level "Details of Loss" block
+// anymore. `dateOfLoss` (the prop, from a legacy claim's intimationData if
+// present) only ever seeds a *new* row's default; each row is independently
+// editable. Still CUSTOMER-filled, at intimation time, same as before.
 // Visible + editable in BOTH "select" mode (Customer/Agent intimating) and
 // "review" mode (Agent/Insurer afterwards, in case it needs correcting).
 const LOSS_DETAIL_FIELDS = [
@@ -28,12 +28,18 @@ const LOSS_DETAIL_FIELDS = [
   { id: "alarmCenterRefNo", label: "Alarm Center Claim Reference Number", type: "text" },
 ];
 
+// Point 2: Medical-only, captured at intimation (select mode) alongside
+// Loss Details, then automatically already present in item.detail by the
+// time it reaches Assessment — no separate re-entry needed.
+const MEDICAL_LOSS_FIELDS = [
+  { id: "hospitalClinicName", label: "Hospital/Clinic Name", type: "text", req: true },
+];
+
 // Point 7: category-specific ASSESSMENT fields — these stay Agent/Insurer
 // only, filled in later at Registration/Assessment, hidden from the
 // Customer entirely (only shown when mode === "review").
 const ASSESSMENT_DETAIL_FIELDS = {
   MEDICAL: [
-    { id: "hospitalClinicName", label: "Hospital/Clinic Name", type: "text" },
     { id: "medCoverSubSection", label: "Cover Sub Section", type: "select", options: ["Room Charges", "ICU Charges", "Doctor Charges", "Surgeon Charges", "OT Charges", "Nursing Charges", "Pharmacy Charges", "Pathology Charges", "Radiology Charges", "Pre Hospitalization", "Post Hospitalization", "Ambulance Charges", "Miscellaneous"] },
     { id: "gstPct", label: "GST %", type: "select", options: ["0%", "5%", "12%", "18%", "28%"] },
     { id: "totalBillAmount", label: "Total Bill Amount", type: "number" },
@@ -125,7 +131,7 @@ function CoverageRow({
   const catalog = coverNameCatalog?.[item.category] || [];
   const subCovers = SUBCOVERS_BY_COVERAGE[item.coverageName]; // point 5: only present if this coverage genuinely has sub-covers
   const assessmentDetails = mode === "review" ? (ASSESSMENT_DETAIL_FIELDS[item.category] || []) : [];
-  const requiredLossFields = LOSS_DETAIL_FIELDS.filter((f) => f.req);
+  const requiredLossFields = (item.category === "MEDICAL" ? [...MEDICAL_LOSS_FIELDS, ...LOSS_DETAIL_FIELDS] : LOSS_DETAIL_FIELDS).filter((f) => f.req);
   const filledLossFields = requiredLossFields.filter((f) => item.detail?.[f.id]).length;
   const lossComplete = filledLossFields === requiredLossFields.length;
   const isExpanded = expandedIndex === index;
@@ -212,7 +218,7 @@ function CoverageRow({
                 Details of Loss — {item.coverageName || "this coverage"}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "14px 16px", marginBottom: assessmentDetails.length > 0 ? 18 : 0 }}>
-                {LOSS_DETAIL_FIELDS.map((f) => (
+                {(item.category === "MEDICAL" ? [...MEDICAL_LOSS_FIELDS, ...LOSS_DETAIL_FIELDS] : LOSS_DETAIL_FIELDS).map((f) => (
                   <DetailField
                     key={f.id}
                     f={f}
@@ -263,9 +269,13 @@ export default function CoverageItemsEditor({
   const removeItem = (index) => onChange(items.filter((_, i) => i !== index));
   const addItem = () => {
     const catalog = coverNameCatalog?.[defaultCategory] || [];
+    // Point 1: same incident by default — copy Loss Details from the first
+    // existing coverage instead of starting blank, since these are usually
+    // shared across coverages on one claim. Still independently editable.
+    const sharedDetail = items[0]?.detail ? { ...items[0].detail } : { dateOfLoss: dateOfLoss || null };
     onChange([
       ...items,
-      { category: defaultCategory, coverageName: catalog[0] || "", subCoverName: null, currency: "USD", initialReserve: 0, subLimitAmount: null, payableAmount: null, detail: { dateOfLoss: dateOfLoss || null } },
+      { category: defaultCategory, coverageName: catalog[0] || "", subCoverName: null, currency: "USD", initialReserve: 0, subLimitAmount: null, payableAmount: null, detail: sharedDetail },
     ]);
   };
 

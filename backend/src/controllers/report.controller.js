@@ -180,7 +180,7 @@ const misExport = asyncHandler(async (req, res) => {
       regionOfLoss: c.intimationData?.regionOfLoss || "",
       alarmCenter: firstItem.detail?.alarmCenterName || "", // point 6
       alarmCenterRefNo: firstItem.detail?.alarmCenterRefNo || "", // point 6
-      dateOfLoss: c.intimationData?.dateOfLoss || "",
+      dateOfLoss: firstItem.detail?.dateOfLoss || "",
       initialReserveUSD: sumItems(c.coverageItems, "amountUSD"),
       initialReserveINR: sumItems(c.coverageItems, "amountINR"),
       admissionDate: c.assessmentData?.hospFrom || "",
