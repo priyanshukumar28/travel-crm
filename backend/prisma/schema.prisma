@@ -19,6 +19,7 @@ enum ClaimCategory {
   NON_MEDICAL
   TRAVEL
   PERSONAL_ACCIDENT
+  FIRE_AND_HOME
 }
 
 enum ClaimStage {
@@ -196,6 +197,7 @@ model Claim {
   policy            Policy      @relation(fields: [policyId], references: [id])
 
   claimCategory ClaimCategory
+  claimType     String?  // "Cashless" | "Reimbursement"
   coverages     String[]
   memberIds     String[]
 

@@ -1,10 +1,20 @@
-// Point 3: the shared front-page "Details of Loss" block is REMOVED from the
-// claim-level Intimation form entirely — Date of Loss and all other loss
-// details are captured PER COVERAGE, by the Agent, inside each coverage row's
-// Details panel (see components/CoverageItemsEditor.jsx's LOSS_DETAIL_FIELDS),
+// Point 3 (this round): the shared front-page "Details of Loss" block
+// (Country/City/Zipcode/Region/Description) is REMOVED from the claim-level
+// Intimation form entirely. Only Date of Loss stays here — a single shared
+// field used for the policy-validity check and to seed each coverage's own
+// exchange-rate date. Country/City/Zipcode/Region/Description are now
+// captured PER COVERAGE, by the Agent, inside each coverage row's Details
+// panel (see components/CoverageItemsEditor.jsx's LOSS_DETAIL_FIELDS) —
 // since 5 coverages on one claim can genuinely have 5 different loss
-// dates/locations/descriptions, so one shared set of fields was wrong.
+// locations/descriptions, one shared set of fields was wrong.
 export const INTIMATION_SCHEMA = [
+  {
+    title: "Details of Loss",
+    fields: [
+      { id: "dateOfLoss", label: "Date of Loss", type: "date", source: "customer", req: "*" },
+      { id: "timeOfLoss", label: "Time of Loss", type: "time", source: "customer" },
+    ],
+  },
   {
     title: "Policy Details",
     fields: [
@@ -12,7 +22,7 @@ export const INTIMATION_SCHEMA = [
       { id: "inceptionDate", label: "Inception Date", type: "date", source: "autofill" },
       { id: "expiryDate", label: "Expiry Date", type: "date", source: "autofill" },
       { id: "holderName", label: "Holder Name", type: "text", source: "autofill" },
-      { id: "claimOfficer", label: "Claim Officer", type: "text", source: "agent" },
+      { id: "claimOfficer", label: "Claim Officer", type: "text", source: "autofill" },
       { id: "modeOfInward", label: "Mode of Inward", type: "select", source: "agent", options: ["By Hand", "Email", "FAX", "Telephone", "Post", "Courier"] },
     ],
   },
@@ -28,10 +38,11 @@ export const INTIMATION_SCHEMA = [
     title: "Claimant Details (Agent-filled after intimation)",
     fields: [
       { id: "isDeathClaim", label: "Is it a death Claim?", type: "select", source: "agent", options: ["Yes", "No"] },
-      { id: "claimantName", label: "Claimant Name", type: "text", source: "agent", req: "**" },
-      { id: "claimantMobile", label: "Claimant Mobile Number", type: "text", source: "agent", req: "**" },
-      { id: "claimantEmail", label: "Claimant Email ID", type: "text", source: "agent", req: "**" },
-      { id: "relationship", label: "Relationship with Insured", type: "select", source: "agent", options: ["Self", "Father", "Mother", "Son", "Daughter", "Spouse", "Siblings", "In-Laws", "Others"], reveal: { equals: "Others", field: { id: "relationshipOther", label: "Please specify relationship", type: "text", source: "agent" } } },
+      // Point 6: Claimant Member 1/2/... Name + Relationship are now
+      // autofetched from the insured member(s) the claim was raised for —
+      // rendered dynamically by the page (see ClaimantDetails component),
+      // not as static fields here, since the number of members varies per
+      // claim. Email/Mobile use the policy holder's own contact details.
     ],
   },
   {

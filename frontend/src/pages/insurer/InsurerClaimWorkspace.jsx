@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import client from "../../api/client";
 import DocumentUpload from "../../components/DocumentUpload";
+import ClaimantDetails from "../../components/ClaimantDetails";
 import LinkedClaims from "../../components/LinkedClaims";
 import CoverageItemsEditor from "../../components/CoverageItemsEditor";
 import {
@@ -151,6 +152,7 @@ export default function InsurerClaimWorkspace() {
 
         {tab === "Documents" && <DocumentUpload claimId={id} coverageItems={claim.coverageItems} />}
 
+        {tab === "Intimation (read-only)" && <ClaimantDetails claim={claim} />}
         {tab === "Intimation (read-only)" && INTIMATION_SCHEMA.map((g) => (
           <SchemaGroup key={g.title} group={g} data={claim.intimationData} onChange={() => {}} role="VIEW" stage="NONE" />
         ))}

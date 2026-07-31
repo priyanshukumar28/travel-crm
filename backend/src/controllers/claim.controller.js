@@ -74,7 +74,7 @@ const getClaim = asyncHandler(async (req, res) => {
   let claim = await prisma.claim.findUnique({
     where: { id: req.params.id },
     include: {
-      policy: { include: { coverages: true, members: true } },
+      policy: { include: { coverages: true, members: true, owner: true } },
       activityLogs: { orderBy: { createdAt: "asc" }, include: { user: true } },
     },
   });
@@ -103,7 +103,7 @@ const getClaim = asyncHandler(async (req, res) => {
       where: { id: claim.id },
       data: { intimationData: { ...claim.intimationData, ...backfill } },
       include: {
-        policy: { include: { coverages: true, members: true } },
+        policy: { include: { coverages: true, members: true, owner: true } },
         activityLogs: { orderBy: { createdAt: "asc" }, include: { user: true } },
       },
     });
@@ -232,7 +232,7 @@ const createClaim = asyncHandler(async (req, res) => {
 
   const createdClaims = [];
   for (const group of claimGroups) {
-    const { claimCategory, memberIds, coverageItems } = group;
+    const { claimCategory, claimType, memberIds, coverageItems } = group; // point 3
     if (!claimCategory || !Array.isArray(coverageItems) || coverageItems.length === 0) continue;
 
     const chosenMemberIds = (memberIds || []).filter((id) => validMemberIds.has(id));
@@ -269,6 +269,7 @@ const createClaim = asyncHandler(async (req, res) => {
         parentClaimNumber,
         policyId,
         claimCategory,
+        claimType: claimType || null,
         coverages: normalizedItems.map((i) => i.coverageName),
         memberIds: chosenMemberIds,
         coverageItems: normalizedItems,
@@ -457,7 +458,12 @@ const updateAssessment = asyncHandler(async (req, res) => {
   if (!claim) return res.status(404).json({ message: "Claim not found." });
   if (claim.stage !== "ASSESSMENT") return res.status(409).json({ message: "Assessment is only editable while the claim is in the Assessment stage." });
   const merged = { ...claim.assessmentData, ...req.body.assessmentData };
-  const updated = await prisma.claim.update({ where: { id: claim.id }, data: { assessmentData: merged } });
+  // Point 5: Claim Officer autofills from the Insurer working the claim, once.
+  const intimationPatch = !claim.intimationData?.claimOfficer ? { claimOfficer: req.user.name } : {};
+  const updated = await prisma.claim.update({
+    where: { id: claim.id },
+    data: { assessmentData: merged, intimationData: { ...claim.intimationData, ...intimationPatch } },
+  });
   await logActivity(claim.id, req.user, "Assessment details updated");
   res.json(updated);
 });
@@ -484,19 +490,29 @@ const updateCoverageItems = asyncHandler(async (req, res) => {
   const validationErrors = [];
   const reserveChanges = [];
 
+  // Point 8: Payable is no longer a free-entered amount — it's computed as
+  // Old Reserve + New Reserve every time the reserve is edited. Old Payable
+  // for the log is simply whatever New Payable was last time (already
+  // stored in old.payableAmount from the previous save), so the chain is
+  // self-consistent turn over turn.
   newItems.forEach((item, i) => {
     const old = oldItems[i] || {};
-    if (Number(old.initialReserve) !== Number(item.initialReserve) || Number(old.payableAmount) !== Number(item.payableAmount)) {
+    const oldReserve = Number(old.initialReserve) || 0;
+    const newReserve = Number(item.initialReserve) || 0;
+    item.payableAmount = oldReserve + newReserve;
+
+    if (oldReserve !== newReserve) {
       reserveChanges.push({
         coverageName: item.coverageName,
-        oldReserve: old.initialReserve, newReserve: item.initialReserve,
-        oldPayable: old.payableAmount, newPayable: item.payableAmount,
+        currency: item.currency || "USD", // point 7
+        oldReserve: old.initialReserve ?? 0, newReserve: item.initialReserve,
+        oldPayable: old.payableAmount ?? 0, newPayable: item.payableAmount,
       });
     }
 
-    if (HARD_LIMIT_COVERAGES.includes(item.coverageName) && item.payableAmount !== null && item.payableAmount !== undefined && item.payableAmount !== "") {
+    if (HARD_LIMIT_COVERAGES.includes(item.coverageName)) {
       const policyCoverage = claim.policy.coverages.find((c) => c.name === item.coverageName);
-      if (policyCoverage && Number(item.payableAmount) > policyCoverage.sumInsured) {
+      if (policyCoverage && item.payableAmount > policyCoverage.sumInsured) {
         validationErrors.push(`${item.coverageName}: payable amount ${item.payableAmount} exceeds the policy's sum insured of ${policyCoverage.sumInsured} for this cover.`);
       }
     }

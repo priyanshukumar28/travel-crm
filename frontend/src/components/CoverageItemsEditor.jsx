@@ -3,7 +3,7 @@ import { Badge } from "./ui";
 import { CURRENCIES, COUNTRIES, REGIONS, SUBCOVERS_BY_COVERAGE } from "../lib/catalog";
 import client from "../api/client";
 
-const CATEGORY_LABELS = { MEDICAL: "Medical", TRAVEL: "Travel", PERSONAL_ACCIDENT: "Personal Accident" };
+const CATEGORY_LABELS = { MEDICAL: "Medical", TRAVEL: "Travel", PERSONAL_ACCIDENT: "Personal Accident", FIRE_AND_HOME: "Fire & Home" };
 
 function money(n) {
   const v = Number(n) || 0;
@@ -33,6 +33,7 @@ const LOSS_DETAIL_FIELDS = [
 // Customer entirely (only shown when mode === "review").
 const ASSESSMENT_DETAIL_FIELDS = {
   MEDICAL: [
+    { id: "hospitalClinicName", label: "Hospital/Clinic Name", type: "text" },
     { id: "medCoverSubSection", label: "Cover Sub Section", type: "select", options: ["Room Charges", "ICU Charges", "Doctor Charges", "Surgeon Charges", "OT Charges", "Nursing Charges", "Pharmacy Charges", "Pathology Charges", "Radiology Charges", "Pre Hospitalization", "Post Hospitalization", "Ambulance Charges", "Miscellaneous"] },
     { id: "gstPct", label: "GST %", type: "select", options: ["0%", "5%", "12%", "18%", "28%"] },
     { id: "totalBillAmount", label: "Total Bill Amount", type: "number" },
@@ -179,7 +180,7 @@ function CoverageRow({
           <td style={{ verticalAlign: "middle" }}><input type="number" value={item.subLimitAmount ?? ""} onChange={(e) => updateItem(index, { subLimitAmount: e.target.value })} style={{ width: 100, textAlign: "right" }} /></td>
         )}
         {mode === "review" && (
-          <td style={{ verticalAlign: "middle" }}><input type="number" value={item.payableAmount ?? ""} onChange={(e) => updateItem(index, { payableAmount: e.target.value })} style={{ width: 100, textAlign: "right" }} /></td>
+          <td style={{ verticalAlign: "middle", textAlign: "right", fontWeight: 700, color: "var(--brand-blue-dark)" }} title="Auto-computed: Old Reserve + New Reserve">{item.payableAmount !== undefined && item.payableAmount !== null ? money(item.payableAmount) : "—"}</td>
         )}
         <td style={{ verticalAlign: "middle" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>

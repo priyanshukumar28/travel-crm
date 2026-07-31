@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import client from "../../api/client";
 import DocumentUpload from "../../components/DocumentUpload";
+import ClaimantDetails from "../../components/ClaimantDetails";
 import LinkedClaims from "../../components/LinkedClaims";
 import CoverageItemsEditor from "../../components/CoverageItemsEditor";
 import { INTIMATION_SCHEMA, REGISTRATION_SCHEMA } from "../../lib/fieldSchemas";
@@ -12,7 +13,7 @@ import {
 } from "../../components/ui";
 import { SOURCE_META } from "../../lib/permissions";
 
-const TABS = ["Intimation", "Registration", "Coverage Items", "TAT & Escalation", "Documents", "Payment", "Activity Log & Remarks"];
+const TABS = ["Intimation", "Registration", "Coverage Items", "TAT & Escalation", "Status", "Documents", "Payment", "Activity Log & Remarks"];
 const QUEUE_BADGE = {
   "Documents Yet to Receive": { color: "#B5790C", bg: "#FBF0D6" },
   "Under Observation": { color: "#1D4FA0", bg: "#E8EFFB" },
@@ -32,7 +33,6 @@ export default function AgentClaimWorkspace() {
   const [remarkText, setRemarkText] = useState("");
   const [validationErrors, setValidationErrors] = useState([]);
   const [closeError, setCloseError] = useState("");
-  const [statusClaimType, setStatusClaimType] = useState("Cashless");
   const [statusValue, setStatusValue] = useState("");
   const navigate = useNavigate();
 
@@ -93,7 +93,7 @@ export default function AgentClaimWorkspace() {
   };
   const updateSecondaryStatus = async () => {
     if (!statusValue) return;
-    await client.patch(`/claims/${id}/secondary-status`, { claimType: statusClaimType, status: statusValue });
+    await client.patch(`/claims/${id}/secondary-status`, { claimType: claim.claimType || "Cashless", status: statusValue });
     setStatusValue("");
     await load();
   };
@@ -154,6 +154,7 @@ export default function AgentClaimWorkspace() {
 
         {tab === "Intimation" && (
           <>
+            <ClaimantDetails claim={claim} />
             {INTIMATION_SCHEMA.map((g, i) => (
               <SchemaGroup key={g.title} group={g} data={claim.intimationData} onChange={setIntimationField} role="AGENT" stage="INTIMATION" defaultOpen={i < 1} />
             ))}
@@ -215,20 +216,32 @@ export default function AgentClaimWorkspace() {
         )}
 
         {tab === "TAT & Escalation" && (
+          <Card title="Queue Status" subtitle="Point 12/15 — TAT/escalation state for this claim">
+            <div className="grid-2">
+              <InfoTile label="Current Queue" value={claim.queueBucket} />
+              <InfoTile label="Deficiency Reason" value={claim.deficiencyReason || "—"} />
+              <InfoTile label="Reminders Sent" value={claim.deficiencyReminderCount || 0} />
+              <InfoTile label="Last Reminder" value={claim.lastReminderAt ? new Date(claim.lastReminderAt).toLocaleString() : "—"} />
+            </div>
+            {claim.status === "DEFICIENT" && (
+              <div className="action-bar" style={{ marginTop: 16 }}>
+                <SecondaryBtn onClick={sendReminder}>Send Next Reminder ({(claim.deficiencyReminderCount || 0) + 1})</SecondaryBtn>
+                {(claim.deficiencyReminderCount || 0) >= 4 && <DangerBtn onClick={closeDeficient}>Close — Documents Never Received</DangerBtn>}
+              </div>
+            )}
+          </Card>
+        )}
+
+        {tab === "Status" && (
           <>
             <Card title="Secondary Status" subtitle="Agent-only — never shown to Customer or Insurer">
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
-                <div className="field" style={{ maxWidth: 160 }}>
-                  <label className="field-label"><span>Claim Type</span></label>
-                  <select value={statusClaimType} onChange={(e) => { setStatusClaimType(e.target.value); setStatusValue(""); }}>
-                    {Object.keys(SECONDARY_STATUS_OPTIONS).map((t) => <option key={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div className="field" style={{ maxWidth: 260 }}>
+              <InfoTile label="Claim Type (set at intimation)" value={claim.claimType || "Not set"} />
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", margin: "12px 0" }}>
+                <div className="field" style={{ maxWidth: 300 }}>
                   <label className="field-label"><span>Status</span></label>
                   <select value={statusValue} onChange={(e) => setStatusValue(e.target.value)}>
                     <option value="">Select…</option>
-                    {SECONDARY_STATUS_OPTIONS[statusClaimType].map((s) => <option key={s}>{s}</option>)}
+                    {(SECONDARY_STATUS_OPTIONS[claim.claimType] || SECONDARY_STATUS_OPTIONS.Cashless).map((s) => <option key={s}>{s}</option>)}
                   </select>
                 </div>
                 <PrimaryBtn onClick={updateSecondaryStatus} disabled={!statusValue}>Update Status</PrimaryBtn>
@@ -245,28 +258,14 @@ export default function AgentClaimWorkspace() {
                 </table>
               )}
             </Card>
-            <Card title="Queue Status" subtitle="Point 12/15 — TAT/escalation state for this claim">
-              <div className="grid-2">
-                <InfoTile label="Current Queue" value={claim.queueBucket} />
-                <InfoTile label="Deficiency Reason" value={claim.deficiencyReason || "—"} />
-                <InfoTile label="Reminders Sent" value={claim.deficiencyReminderCount || 0} />
-                <InfoTile label="Last Reminder" value={claim.lastReminderAt ? new Date(claim.lastReminderAt).toLocaleString() : "—"} />
-              </div>
-              {claim.status === "DEFICIENT" && (
-                <div className="action-bar" style={{ marginTop: 16 }}>
-                  <SecondaryBtn onClick={sendReminder}>Send Next Reminder ({(claim.deficiencyReminderCount || 0) + 1})</SecondaryBtn>
-                  {(claim.deficiencyReminderCount || 0) >= 4 && <DangerBtn onClick={closeDeficient}>Close — Documents Never Received</DangerBtn>}
-                </div>
-              )}
-            </Card>
-            <Card title="Reserve / Payable Change History" subtitle="Point 14 — who changed the reserve amount, from what to what, and when">
+            <Card title="Reserve Analysis" subtitle="Point 14 — who changed the reserve amount, from what to what, and when">
               {reserveChangeLogs.length === 0 ? <EmptyNote text="No reserve changes recorded yet." /> : (
                 <table className="data-table">
-                  <thead><tr><th>Coverage</th><th>Old Reserve</th><th>New Reserve</th><th>Old Payable</th><th>New Payable</th><th>By</th><th>When</th></tr></thead>
+                  <thead><tr><th>Coverage</th><th>Currency</th><th>Old Reserve</th><th>New Reserve</th><th>Old Payable</th><th>New Payable</th><th>By</th><th>When</th></tr></thead>
                   <tbody>
                     {reserveChangeLogs.flatMap((log) => (log.meta.changes || []).map((c, i) => (
                       <tr key={`${log.id}-${i}`}>
-                        <td>{c.coverageName}</td><td>{c.oldReserve ?? "—"}</td><td>{c.newReserve ?? "—"}</td>
+                        <td>{c.coverageName}</td><td>{c.currency || "USD"}</td><td>{c.oldReserve ?? "—"}</td><td>{c.newReserve ?? "—"}</td>
                         <td>{c.oldPayable ?? "—"}</td><td>{c.newPayable ?? "—"}</td>
                         <td>{log.user?.name}</td><td>{new Date(log.createdAt).toLocaleString()}</td>
                       </tr>

@@ -3,10 +3,10 @@ import { useNavigate } from "react-router-dom";
 import client from "../../api/client";
 import { Card, PrimaryBtn, EmptyNote } from "../../components/ui";
 import CoverageItemsEditor from "../../components/CoverageItemsEditor";
-import { FALLBACK_COVER_NAMES, CLAIM_CATEGORIES, CATEGORY_LABELS } from "../../lib/catalog";
+import { FALLBACK_COVER_NAMES, CLAIM_CATEGORIES, CATEGORY_LABELS, CLAIM_TYPES } from "../../lib/catalog";
 
 function blankGroup(cat, catalog) {
-  return { claimCategory: cat, memberIds: [], coverageItems: [{ category: cat, coverageName: (catalog[cat] || [])[0] || "", subCoverName: null, currency: "USD", initialReserve: "", detail: {} }] };
+  return { claimCategory: cat, claimType: "Cashless", memberIds: [], coverageItems: [{ category: cat, coverageName: (catalog[cat] || [])[0] || "", subCoverName: null, currency: "USD", initialReserve: "", detail: {} }] };
 }
 
 export default function AgentNewClaim() {
@@ -49,6 +49,7 @@ export default function AgentNewClaim() {
   }));
   const toggleGroupMember = (i, id) => setGroups((g) => g.map((grp, idx) => idx === i ? { ...grp, memberIds: grp.memberIds.includes(id) ? grp.memberIds.filter((x) => x !== id) : [...grp.memberIds, id] } : grp));
   const setGroupCoverageItems = (i, items) => setGroups((g) => g.map((grp, idx) => (idx === i ? { ...grp, coverageItems: items } : grp)));
+  const setGroupClaimType = (i, t) => setGroups((g) => g.map((grp, idx) => (idx === i ? { ...grp, claimType: t } : grp)));
 
   const REQUIRED_LOSS_FIELDS = ["dateOfLoss", "countryOfLoss", "cityOfLoss", "zipcode", "regionOfLoss", "descriptionOfLoss"];
 
@@ -118,6 +119,13 @@ export default function AgentNewClaim() {
                     ))}
                   </div>
                   <button className="btn btn-secondary" onClick={() => removeGroup(i)}>Remove</button>
+                </div>
+
+                <div className="field" style={{ maxWidth: 200, marginBottom: 14 }}>
+                  <label className="field-label"><span>Claim Type</span></label>
+                  <select value={grp.claimType || "Cashless"} onChange={(e) => setGroupClaimType(i, e.target.value)}>
+                    {CLAIM_TYPES.map((t) => <option key={t}>{t}</option>)}
+                  </select>
                 </div>
 
                 {policy.members?.length > 0 && (

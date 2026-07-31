@@ -28,10 +28,12 @@ export const FALLBACK_COVER_NAMES = {
     "Personal Accident", "Accidental Death (Common Carrier)", "Compassionate Visit",
     "Return of Minor Child(ren)", "Adventure Sports",
   ],
+  FIRE_AND_HOME: ["Fire Cover for Building", "Fire Cover for Contents", "Burglary Cover for Home Contents"],
 };
 
-export const CLAIM_CATEGORIES = ["MEDICAL", "TRAVEL", "PERSONAL_ACCIDENT"];
-export const CATEGORY_LABELS = { MEDICAL: "Medical", NON_MEDICAL: "Non-Medical", TRAVEL: "Travel", PERSONAL_ACCIDENT: "Personal Accident" };
+export const CLAIM_CATEGORIES = ["MEDICAL", "TRAVEL", "PERSONAL_ACCIDENT", "FIRE_AND_HOME"];
+export const CATEGORY_LABELS = { MEDICAL: "Medical", NON_MEDICAL: "Non-Medical", TRAVEL: "Travel", PERSONAL_ACCIDENT: "Personal Accident", FIRE_AND_HOME: "Fire & Home" };
+export const CLAIM_TYPES = ["Cashless", "Reimbursement"];
 
 // Point 23 — region list exactly as given.
 export const REGIONS = ["Asia", "Middle East", "Africa", "USA and Canada", "Australia and New Zealand", "Europe", "United Kingdom", "Southeast Asia"];

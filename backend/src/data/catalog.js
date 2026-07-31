@@ -18,6 +18,7 @@ const COVER_NAMES = {
     "Personal Accident", "Accidental Death (Common Carrier)", "Compassionate Visit",
     "Return of Minor Child(ren)", "Adventure Sports",
   ],
+  FIRE_AND_HOME: ["Fire Cover for Building", "Fire Cover for Contents", "Burglary Cover for Home Contents"],
 };
 
 // Point 18 — these three medical covers get hard sub-limit/payable validation.
